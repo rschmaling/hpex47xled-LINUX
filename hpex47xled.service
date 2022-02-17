@@ -1,0 +1,10 @@
+Description=HP EX47x Drive LED Monitor Service
+
+[Service]
+#User=nobody
+#Group=nobody
+Type=simple
+ExecStart=/usr/local/bin/hpex47xled
+
+[Install]
+WantedBy=multi-user.target
