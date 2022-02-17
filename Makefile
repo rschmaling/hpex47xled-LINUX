@@ -26,7 +26,7 @@ hpex47xled.o: hpex47xled.c
 	$(CC) $(CFLAGS) -o $@ -c $^
 
 hpex47xled: hpex47xled.o
-	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 .PHONY: clean
 

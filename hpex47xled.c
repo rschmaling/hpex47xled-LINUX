@@ -106,12 +106,10 @@ int retbytes( char* statfile, int field ){
 
         while( (fgets(buffer, BUFFER_SIZE, input_file) != NULL)) {
 
-            // Write the line to stdout
 		if( debug ) {
             		fputs( buffer, stdout );
 		}
 
-            // Gets each token as a string and prints it
             last_token = strtok( buffer, delimiter_characters );
 
             while( (last_token != NULL) && (token <= field) ){
@@ -149,14 +147,12 @@ int hpex47x_init (void) {
 	char *statpath = NULL;
 	char *ppath = NULL;
 	int numdisks = 0;
-	// int readio, writeio;
 
 	udev = udev_new();
 
 	if (!udev)
 		err(1, "Unable to create struct udev in hpex47x_init() ");
 	
-	/* Create a list of the devices in the 'hidraw' subsystem. */
 	enumerate = udev_enumerate_new(udev); 
 	device_monitor = udev_monitor_new_from_netlink(udev, "udev");
 
@@ -207,6 +203,7 @@ int hpex47x_init (void) {
 			printf("Device stat file is at: %s \n", statpath);
 			printf("Device type is: %s \n", udev_device_get_devtype(dev));
 		}
+		/* reset to get parent device so we can scrape the last section and determine which bay is in use. */
 		dev = udev_device_get_parent(dev);
 		if (!dev)
 			err(1, "Unable to find parent path of scsi device in hpex47x_init() ");
@@ -405,7 +402,7 @@ int plt(int led)
 /* turn off all led */
 int offled(int led)
 {
-	// usleep(100000);
+	/* usleep(100000); // for a slightly longer delay - swap this for the below */
 	usleep(85000);
 	/* doing this until I can figure out how to turn off the each light individually */
 	encreg = CTL;
@@ -433,7 +430,7 @@ int show_help(char * progname ) {
 
 int show_version(char * progname ) {
 	char *this = curdir(progname);
-        printf("%s %s %s %s %s %s",this,"Version 0.0.1 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
+        printf("%s %s %s %s %s %s",this,"Version 1.0.1 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
         return 0;
 }
 
