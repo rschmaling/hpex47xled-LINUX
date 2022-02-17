@@ -36,5 +36,5 @@ clean:
 .PHONY: install
 
 install: all
-	test -f $(RCPREFIX)$(RCFILE) || install -m 640 $(RCPREFIX)$(RCFILE)
+	test -f $(RCPREFIX)$(RCFILE) || install -m 644 $(RCPREFIX)$(RCFILE)
 	install -s -m 700 hpex47xled $(PREFIX)/bin/
