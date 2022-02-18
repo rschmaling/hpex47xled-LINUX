@@ -242,9 +242,9 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("ide0.statfile is: %s \n", ide0.statfile);
 			ide0.hphdd = 1;
-			if ( (ide0.rio = retbytes(statpath, 0)) <= 0)
+			if ( (ide0.rio = retbytes(ide0.statfile, 0)) < 0)
 			       err(1, "Error on return from retbytes in hpex47x_init() ");
-			if( (ide0.wio = retbytes(statpath, 4)) <= 0)
+			if( (ide0.wio = retbytes(ide0.statfile, 4)) < 0)
 				err(1, "Error on return from retbytes in hpex47x_init() ");	
 			hpex47x[numdisks] = ide0;
 			syslog(LOG_NOTICE,"Adding HP Disk 1 to monitor pool.");
@@ -261,9 +261,9 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("ide1.statfile is: %s \n", ide1.statfile);
 			ide1.hphdd = 2;
-			if( (ide1.rio = retbytes(statpath, 0)) <= 0)
+			if( (ide1.rio = retbytes(ide1.statfile, 0)) < 0)
 			       err(1, "Error on return from retbytes in hpex47x_init() ");
-			if( (ide1.wio = retbytes(statpath, 4)) <= 0)
+			if( (ide1.wio = retbytes(ide1.statfile, 4)) < 0)
 				err(1, "Error on return from retbytes in hpex47x_init() ");	
 			hpex47x[numdisks] = ide1;
 			syslog(LOG_NOTICE,"Adding HP Disk 2 to monitor pool.");
@@ -280,9 +280,9 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("ide2.statfile is: %s \n", ide2.statfile);
 			ide2.hphdd = 3;
-			if( (ide2.rio = retbytes(statpath, 0)) <= 0)
+			if( (ide2.rio = retbytes(ide2.statfile, 0)) < 0)
 			       err(1, "Error on return from retbytes in hpex47x_init() ");
-			if( (ide2.wio = retbytes(statpath, 4)) <= 0)
+			if( (ide2.wio = retbytes(ide2.statfile, 4)) < 0)
 				err(1, "Error on return from retbytes in hpex47x_init() ");	
 			hpex47x[numdisks] = ide2;
 			syslog(LOG_NOTICE,"Adding HP Disk 3 to monitor pool.");
@@ -299,9 +299,47 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("ide3.statfile is: %s \n", ide3.statfile);
 			ide3.hphdd = 4;
-			if( (ide3.rio = retbytes(statpath, 0)) <= 0)
+			if( (ide3.rio = retbytes(ide3.statfile, 0)) < 0)
 			       err(1, "Error on return from retbytes in hpex47x_init() ");
-			if( (ide3.wio = retbytes(statpath, 4)) <= 0)
+			if( (ide3.wio = retbytes(ide3.statfile, 4)) < 0)
+				err(1, "Error on return from retbytes in hpex47x_init() ");	
+			hpex47x[numdisks] = ide3;
+			syslog(LOG_NOTICE,"Adding HP Disk 4 to monitor pool.");
+			syslog(LOG_NOTICE,"Statfile path for HP Disk 4 is %s",hpex47x[numdisks].statfile);
+
+			if(debug)
+				printf("Found HDD4 \n");
+		} //I do not know why this switches between host1 and host2 but it does.
+		else if( (strcmp(host_bus,"2:0:0:0")) == 0 ) {
+			if( (ide2.statfile = (char *)calloc(128, sizeof(char))) == NULL)
+				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+			if( !(strcpy(ide2.statfile, statpath))) 
+				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
+			if(debug)
+				printf("ide2.statfile is: %s \n", ide2.statfile);
+			ide2.hphdd = 3;
+			if( (ide2.rio = retbytes(ide2.statfile, 0)) < 0)
+			       err(1, "Error on return from retbytes in hpex47x_init() ");
+			if( (ide2.wio = retbytes(ide2.statfile, 4)) < 0)
+				err(1, "Error on return from retbytes in hpex47x_init() ");	
+			hpex47x[numdisks] = ide2;
+			syslog(LOG_NOTICE,"Adding HP Disk 3 to monitor pool.");
+			syslog(LOG_NOTICE,"Statfile path for HP Disk 3 is %s",hpex47x[numdisks].statfile);
+
+			if(debug)
+				printf("Found HDD3 \n");
+		}
+		else if( (strcmp(host_bus,"2:0:1:0")) == 0 ) {
+			if( (ide3.statfile = (char *)calloc(128, sizeof(char))) == NULL)
+				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+			if( !(strcpy(ide3.statfile, statpath))) 
+				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
+			if(debug)
+				printf("ide3.statfile is: %s \n", ide3.statfile);
+			ide3.hphdd = 4;
+			if( (ide3.rio = retbytes(ide3.statfile, 0)) < 0)
+			       err(1, "Error on return from retbytes in hpex47x_init() ");
+			if( (ide3.wio = retbytes(ide3.statfile, 4)) < 0)
 				err(1, "Error on return from retbytes in hpex47x_init() ");	
 			hpex47x[numdisks] = ide3;
 			syslog(LOG_NOTICE,"Adding HP Disk 4 to monitor pool.");

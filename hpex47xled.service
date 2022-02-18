@@ -1,11 +1,13 @@
 [Unit]
 Description=HP EX47x Drive LED Monitor Service
+# After=multi-user.target unattended-upgrades.service
 
 [Service]
 #User=nobody
 #Group=nobody
 Type=simple
 ExecStart=/usr/local/bin/hpex47xled
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
