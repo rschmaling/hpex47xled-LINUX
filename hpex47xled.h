@@ -11,6 +11,7 @@
 #include <getopt.h>
 #include <sys/io.h>
 #include <pwd.h>
+#include <pthread.h>
 
 /* defines */
 /*
@@ -70,7 +71,7 @@ struct hpled {
 
 void sigterm_handler(int s);
 int64_t retbytes( char* statfile, int field );
-int hpex47x_init (void);
+void* hpex47x_init(void *);
 char* curdir(char *str);
 int show_help(char * progname );
 int show_version(char * progname );

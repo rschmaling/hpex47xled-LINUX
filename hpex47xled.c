@@ -50,8 +50,8 @@
 static struct hpled ide0, ide1, ide2, ide3 ;
 static struct hpled hpex47x[4];
 static int debug = 0;
-static int hpdisks = 0;
 static u_int16_t encreg;
+static int* hpdisks = NULL;
 
 
 // 0 is read I/Os, 4 is write I/Os in the /sys/devices/* /stat file 
@@ -146,7 +146,7 @@ int64_t retbytes( char* statfile, int field ){
 
 }
 
-int hpex47x_init (void) {
+void* hpex47x_init (void *) {
 
 	struct udev *udev = NULL;
 	struct udev_enumerate *enumerate = NULL;
@@ -342,8 +342,9 @@ int hpex47x_init (void) {
 		free(ppath);
 		ppath = NULL;
 	}
-
-	return numdisks;       
+	int *answer = malloc(sizeof(*answer));
+	*answer = numdisks;
+	pthread_exit(answer);       
 }
 
 /* blue led toggle */
@@ -455,11 +456,15 @@ void drop_priviledges( void ) {
 	}
 }
 
-
 int main (int argc, char** argv) {
 
 	static int run_as_daemon = 0;
 	static int64_t n_rio, n_wio = 0;
+
+	// Thread ID
+	pthread_t tid;
+	// Create Attributes
+	pthread_attr_t attr;
 
 	if (geteuid() !=0 ) {
 		printf("Try running as root to avoid Segfault and core dump \n");
@@ -509,17 +514,17 @@ int main (int argc, char** argv) {
 	signal( SIGINT, sigterm_handler);
 	signal( SIGQUIT, sigterm_handler);
 	signal( SIGILL, sigterm_handler);
-	syslog(LOG_NOTICE,"Initializing %s %s %s %s %s ", curdir(argv[0]),"Version 0.0.1 compiled on", __DATE__,"at", __TIME__);
 
-	if ( (hpdisks = hpex47x_init()) <= 0) 
+	if ((pthread_attr_init(&attr)) < 0 )
+		err(1, "Unable to execute pthread_attr_init(&attr) in main()");
+
+	if( (pthread_create(&tid, &attr, hpex47x_init, NULL)) != 0)
 		err(1, "Unable to init in main - bad return from hpex47x_init() ");
-	if (debug)
-		printf("Disks are now: %i \n", hpdisks);
+
+	syslog(LOG_NOTICE,"Initializing %s %s %s %s %s ", curdir(argv[0]),"Version 1.0.2 compiled on", __DATE__,"at", __TIME__);
 
 	/* Try and drop root priviledges now that we have initialized */
 	drop_priviledges();
-
-	syslog(LOG_NOTICE,"Initialized. Now monitoring for drive activity - Enjoy the light show!");
 
 	if ( run_as_daemon ) {
 		if (daemon( 0, 0 ) > 0 )
@@ -527,8 +532,16 @@ int main (int argc, char** argv) {
 		syslog(LOG_NOTICE,"Forking to background, running in daemon mode");
 	}
 
+	if( (pthread_join(tid,(void**)&hpdisks)) != 0)
+		err(1, "Unable to rejoin thread prior to execution in main()");
+
+	if (debug)
+		printf("Disks are now: %i \n", *hpdisks);
+
+	syslog(LOG_NOTICE,"Initialized. Now monitoring for drive activity - Enjoy the light show!");
+
 	while(1) {
-		for(int a = 0; a < hpdisks; a++) {
+		for(int a = 0; a < *hpdisks; a++) {
 			n_rio = retbytes(hpex47x[a].statfile, 0);
 			n_wio = retbytes(hpex47x[a].statfile, 4);
 
@@ -570,13 +583,15 @@ int main (int argc, char** argv) {
 
 	syslog(LOG_NOTICE,"Closing Down");	
 
-	for(int a = 0; a < hpdisks; a++) {
+	for(int a = 0; a < *hpdisks; a++) {
 		free(hpex47x[a].statfile);
 		hpex47x[a].statfile = NULL;		
 		offled(hpex47x[a].hphdd);
 	}
 	ioperm(ADDR, 16, 0);
 	closelog();
+	free(hpdisks);
+	hpdisks = NULL;
 	return 0;       
 }
 
@@ -584,11 +599,13 @@ void sigterm_handler(int s)
 {
 	syslog(LOG_NOTICE,"Closing Down due to signal");
 	closelog();
-	for(int a = 0; a < hpdisks; a++) {
+	for(int a = 0; a < *hpdisks; a++) {
 		free(hpex47x[a].statfile);
 		hpex47x[a].statfile = NULL;		
 		offled(hpex47x[a].hphdd);
 	}
 	ioperm(ADDR, 16, 0);
+	free(hpdisks);
+	hpdisks = NULL;
 	err(0, "Exiting from signal");
 }
