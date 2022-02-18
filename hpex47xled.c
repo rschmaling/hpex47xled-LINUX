@@ -522,7 +522,7 @@ int main (int argc, char** argv) {
 	signal( SIGQUIT, sigterm_handler);
 	signal( SIGILL, sigterm_handler);
 
-	syslog(LOG_NOTICE,"Initializing %s %s %s %s %s ", curdir(argv[0])," compiled on", __DATE__,"at", __TIME__);
+	syslog(LOG_NOTICE,"Initializing %s %s %s %s %s ", curdir(argv[0]),"compiled on", __DATE__,"at", __TIME__);
 
 	/* Try and drop root priviledges now that we have initialized */
 	drop_priviledges();
