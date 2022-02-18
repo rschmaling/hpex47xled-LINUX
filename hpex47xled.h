@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <locale.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <string.h>
 #include <signal.h>
 #include <err.h>
@@ -63,12 +64,12 @@
 struct hpled {
         char* statfile;
         int hphdd;
-        int rio;
-        int wio;
+        int64_t rio;
+        int64_t wio;
 };
 
 void sigterm_handler(int s);
-int retbytes( char* statfile, int field);
+int64_t retbytes( char* statfile, int field );
 int hpex47x_init (void);
 char* curdir(char *str);
 int show_help(char * progname );

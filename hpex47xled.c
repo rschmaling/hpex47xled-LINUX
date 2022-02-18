@@ -37,6 +37,11 @@
 /////// - other udev code taken from examples around the net - sorry I don't recall all the sites I visited looking for answers - you do deserve the credit.
 /////// - each drive will flash based on IO activity derrived from /sys/ * /stat files. If you use a drive connected by eSATA - YMMV. Please provide
 ///////   the /sys/* information path so I can add it to the ide structures, ignore, or exclude them from detection. 
+///////
+///////
+/////// February 18, 2022  
+/////// - Change retbyte to return int64_t and the hpled struct r_io and w_io to int64_t as well. reasoning: if this runs long enough, that number will become large.
+/////// - added a break to the token return of retbyte - didn't realize I was letting it parse the whole file before returning.
 
 #include "hpex47xled.h"
 
@@ -46,7 +51,7 @@ static struct hpled ide0, ide1, ide2, ide3 ;
 static struct hpled hpex47x[4];
 static int debug = 0;
 static int hpdisks = 0;
-u_int16_t encreg;
+static u_int16_t encreg;
 
 
 // 0 is read I/Os, 4 is write I/Os in the /sys/devices/* /stat file 
@@ -89,11 +94,12 @@ char* retpath( char* parent, char *delim, int field ){
     return found;
 }
 
-int retbytes( char* statfile, int field ){
+int64_t retbytes( char* statfile, int field ){
 
     const char *delimiter_characters = " ";
     char buffer[ BUFFER_SIZE ];
     char *last_token;
+    char *end;
     int token = 0;
     int found = 0;
 
@@ -114,10 +120,13 @@ int retbytes( char* statfile, int field ){
 
             while( (last_token != NULL) && (token <= field) ){
                 if( token == field) {
-                        found = atoi( last_token );
+                        found = strtoll( last_token, &end, 10 );
+			if(*end)
+				err(1, "Unable to convert string to int64_t in retbytes()");
 
 			if(debug)
                         	printf("The value of field %i is %i \n", token, found);
+			break;
                 }
                 last_token = strtok( NULL, delimiter_characters );
                 token++;
@@ -430,7 +439,7 @@ int show_help(char * progname ) {
 
 int show_version(char * progname ) {
 	char *this = curdir(progname);
-        printf("%s %s %s %s %s %s",this,"Version 1.0.1 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
+        printf("%s %s %s %s %s %s",this,"Version 1.0.2 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
         return 0;
 }
 
@@ -450,7 +459,7 @@ void drop_priviledges( void ) {
 int main (int argc, char** argv) {
 
 	static int run_as_daemon = 0;
-	static int n_rio, n_wio;
+	static int64_t n_rio, n_wio = 0;
 
 	if (geteuid() !=0 ) {
 		printf("Try running as root to avoid Segfault and core dump \n");
@@ -530,7 +539,7 @@ int main (int argc, char** argv) {
 				hpex47x[a].rio = n_rio;
 				hpex47x[a].wio = n_wio;
 				if(debug) {
-					printf("Read I/O = %i Write I/O = %i \n", n_rio, n_wio);
+					printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
 					printf("HP HDD is: %i \n", hpex47x[a].hphdd);
 				}
 				plt(hpex47x[a].hphdd);
@@ -538,7 +547,7 @@ int main (int argc, char** argv) {
 			else if( hpex47x[a].rio != n_rio ) {
 				hpex47x[a].rio = n_rio;
 				if(debug) {
-					printf("Read I/O only and is: %i \n", n_rio);
+					printf("Read I/O only and is: %li \n", n_rio);
 					printf("HP HDD is: %i \n", hpex47x[a].hphdd);
 				}
 				plt(hpex47x[a].hphdd);
@@ -546,7 +555,7 @@ int main (int argc, char** argv) {
 			else if( hpex47x[a].wio != n_wio ) {
 				hpex47x[a].wio = n_wio;
 				if(debug) {
-					printf("Write I/O only and is: %i \n", n_wio);
+					printf("Write I/O only and is: %li \n", n_wio);
 					printf("HP HDD is: %i \n", hpex47x[a].hphdd);
 				}
 				blt(hpex47x[a].hphdd);

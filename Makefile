@@ -4,7 +4,8 @@ SHELL = /usr/bin/bash
 CC = gcc
 CXX = g++
 # FLAGS = -Wall -O2 -fvariable-expansion-in-unroller -ftree-loop-ivcanon -funroll-loops -fexpensive-optimizations -fomit-frame-pointer
-FLAGS = -Wall -O2 
+# FLAGS = -Wall -O2 -std=c99 -Werror
+FLAGS = -Wall -O2 -Werror
 CFLAGS = $(FLAGS)
 CXXFLAGS = $(CFLAGS)
 LDFLAGS = -ludev
