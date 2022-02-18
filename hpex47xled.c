@@ -505,6 +505,13 @@ int main (int argc, char** argv) {
         }
 	
 	openlog("hpex47xled:", LOG_CONS | LOG_PID, LOG_DAEMON );
+
+	if ((pthread_attr_init(&attr)) < 0 )
+		err(1, "Unable to execute pthread_attr_init(&attr) in main()");
+
+	if( (pthread_create(&tid, &attr, hpex47x_init, NULL)) != 0)
+		err(1, "Unable to init in main - bad return from hpex47x_init() ");
+
 	if (ioperm(ADDR,16,1)) {
 		perror("ioperm"); 
 		exit(1);
@@ -515,22 +522,10 @@ int main (int argc, char** argv) {
 	signal( SIGQUIT, sigterm_handler);
 	signal( SIGILL, sigterm_handler);
 
-	if ((pthread_attr_init(&attr)) < 0 )
-		err(1, "Unable to execute pthread_attr_init(&attr) in main()");
-
-	if( (pthread_create(&tid, &attr, hpex47x_init, NULL)) != 0)
-		err(1, "Unable to init in main - bad return from hpex47x_init() ");
-
-	syslog(LOG_NOTICE,"Initializing %s %s %s %s %s ", curdir(argv[0]),"Version 1.0.2 compiled on", __DATE__,"at", __TIME__);
+	syslog(LOG_NOTICE,"Initializing %s %s %s %s %s ", curdir(argv[0])," compiled on", __DATE__,"at", __TIME__);
 
 	/* Try and drop root priviledges now that we have initialized */
 	drop_priviledges();
-
-	if ( run_as_daemon ) {
-		if (daemon( 0, 0 ) > 0 )
-			err(1, "Unable to daemonize :");
-		syslog(LOG_NOTICE,"Forking to background, running in daemon mode");
-	}
 
 	if( (pthread_join(tid,(void**)&hpdisks)) != 0)
 		err(1, "Unable to rejoin thread prior to execution in main()");
@@ -539,6 +534,12 @@ int main (int argc, char** argv) {
 		printf("Disks are now: %i \n", *hpdisks);
 
 	syslog(LOG_NOTICE,"Initialized. Now monitoring for drive activity - Enjoy the light show!");
+
+	if ( run_as_daemon ) {
+		if (daemon( 0, 0 ) > 0 )
+			err(1, "Unable to daemonize :");
+		syslog(LOG_NOTICE,"Forking to background, running in daemon mode");
+	}
 
 	while(1) {
 		for(int a = 0; a < *hpdisks; a++) {
