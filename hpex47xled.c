@@ -244,7 +244,7 @@ void* hpex47x_init (void *) {
 
 		/* since the HPEX47x only has 4 bays and they are located on either ata1 or ata2 with fixed a host bus - allocate them like this. */
 		// if( (strcmp(host_bus,"0:0:0:0")) == 0 ) {
-		if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2))))) {
+		if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2)))) == 0) {
 
 			if( (ide0.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
@@ -265,7 +265,7 @@ void* hpex47x_init (void *) {
 				printf("Found HDD1 \n");
 		}
 		// else if( (strcmp(host_bus,"0:0:1:0")) == 0 ) {
-		else if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2))))) {
+		else if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2)))) == 0) {
 			if( (ide1.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
 			if( !(strcpy(ide1.statfile, statpath))) 
@@ -285,7 +285,7 @@ void* hpex47x_init (void *) {
 				printf("Found HDD2 \n");
 		}
 		// else if( (strcmp(host_bus,"1:0:0:0")) == 0 ) {
-		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2))))) {
+		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2)))) == 0) {
 			if( (ide2.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
 			if( !(strcpy(ide2.statfile, statpath))) 
@@ -305,7 +305,7 @@ void* hpex47x_init (void *) {
 				printf("Found HDD3 \n");
 		}
 		// else if( (strcmp(host_bus,"1:0:1:0")) == 0 ) {
-		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2))))) {
+		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2)))) == 0) {
 			if( (ide3.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
 			if( !(strcpy(ide3.statfile, statpath))) 
@@ -427,7 +427,7 @@ int plt(int led)
 int offled(int led)
 {
 	/* usleep(100000); // for a slightly longer delay - swap this for the below */
-	usleep(85000);
+	usleep(100000);
 	/* doing this until I can figure out how to turn off the each light individually */
 	encreg = CTL;
 	outw(encreg, ADDR);
@@ -526,7 +526,7 @@ int main (int argc, char** argv) {
 	if( (pthread_create(&tid, &attr, hpex47x_init, NULL)) != 0)
 		err(1, "Unable to init in main - bad return from hpex47x_init() ");
 
-	if (ioperm(ADDR,16,1)) {
+	if (ioperm(ADDR,8,1)) {
 		perror("ioperm"); 
 		exit(1);
 	}
@@ -596,14 +596,14 @@ int main (int argc, char** argv) {
 		}
 	}
 
-	syslog(LOG_NOTICE,"Closing Down");	
+	syslog(LOG_NOTICE,"Standard Close of Program");	
 
 	for(int a = 0; a < *hpdisks; a++) {
 		free(hpex47x[a].statfile);
 		hpex47x[a].statfile = NULL;		
 		offled(hpex47x[a].hphdd);
 	}
-	ioperm(ADDR, 16, 0);
+	ioperm(ADDR, 8, 0);
 	closelog();
 	free(hpdisks);
 	hpdisks = NULL;
@@ -612,15 +612,15 @@ int main (int argc, char** argv) {
 
 void sigterm_handler(int s)
 {
-	syslog(LOG_NOTICE,"Closing Down due to signal");
+	syslog(LOG_NOTICE,"Shutting Down on Signal");
 	closelog();
 	for(int a = 0; a < *hpdisks; a++) {
 		free(hpex47x[a].statfile);
 		hpex47x[a].statfile = NULL;		
 		offled(hpex47x[a].hphdd);
 	}
-	ioperm(ADDR, 16, 0);
+	ioperm(ADDR, 8, 0);
 	free(hpdisks);
 	hpdisks = NULL;
-	err(0, "Exiting from signal");
+	err(0, "Exiting From Signal Handler");
 }
