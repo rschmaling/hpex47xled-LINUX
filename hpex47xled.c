@@ -203,6 +203,13 @@ void* hpex47x_init (void *) {
 		if( !(strcpy(statpath, path))) 
 			err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
 		
+		/* We only want these host busses as they are associated with the first (1, 2) and second (3, 4) set of drive bays */
+		if( ! (strcmp("ata1",(retpath(statpath, "/", 4)))) && ! (strcmp("ata2",(retpath(statpath, "/", 4)))))
+			continue;
+		
+		if(debug)
+			printf("Device host bus is: %s \n", retpath(statpath, "/", 4));
+		
 		if( (strcat(statpath, "/stat")) == NULL) 
 			err(1, "Unable to concatinate /stat to path in hpex47x_init()");
 
@@ -232,8 +239,12 @@ void* hpex47x_init (void *) {
 			printf("ppath is: %s - if shorter than expected, retpath is still destroying the original string value \n",ppath);
 		if (debug)
 			printf("The host_bus is : %s \n", host_bus);	
+		if (debug)
+			printf("Field 2 of host_bus is: %s \n", retpath(host_bus, ":",2));
+
 		/* since the HPEX47x only has 4 bays and they are located on either ata1 or ata2 with fixed a host bus - allocate them like this. */
-		if( (strcmp(host_bus,"0:0:0:0")) == 0 ) {
+		// if( (strcmp(host_bus,"0:0:0:0")) == 0 ) {
+		if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2))))) {
 
 			if( (ide0.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
@@ -253,7 +264,8 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("Found HDD1 \n");
 		}
-		else if( (strcmp(host_bus,"0:0:1:0")) == 0 ) {
+		// else if( (strcmp(host_bus,"0:0:1:0")) == 0 ) {
+		else if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2))))) {
 			if( (ide1.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
 			if( !(strcpy(ide1.statfile, statpath))) 
@@ -272,7 +284,8 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("Found HDD2 \n");
 		}
-		else if( (strcmp(host_bus,"1:0:0:0")) == 0 ) {
+		// else if( (strcmp(host_bus,"1:0:0:0")) == 0 ) {
+		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2))))) {
 			if( (ide2.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
 			if( !(strcpy(ide2.statfile, statpath))) 
@@ -291,45 +304,8 @@ void* hpex47x_init (void *) {
 			if(debug)
 				printf("Found HDD3 \n");
 		}
-		else if( (strcmp(host_bus,"1:0:1:0")) == 0 ) {
-			if( (ide3.statfile = (char *)calloc(128, sizeof(char))) == NULL)
-				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
-			if( !(strcpy(ide3.statfile, statpath))) 
-				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
-			if(debug)
-				printf("ide3.statfile is: %s \n", ide3.statfile);
-			ide3.hphdd = 4;
-			if( (ide3.rio = retbytes(ide3.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in hpex47x_init() ");
-			if( (ide3.wio = retbytes(ide3.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in hpex47x_init() ");	
-			hpex47x[numdisks] = ide3;
-			syslog(LOG_NOTICE,"Adding HP Disk 4 to monitor pool.");
-			syslog(LOG_NOTICE,"Statfile path for HP Disk 4 is %s",hpex47x[numdisks].statfile);
-
-			if(debug)
-				printf("Found HDD4 \n");
-		} //I do not know why this switches between host1 and host2 but it does.
-		else if( (strcmp(host_bus,"2:0:0:0")) == 0 ) {
-			if( (ide2.statfile = (char *)calloc(128, sizeof(char))) == NULL)
-				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
-			if( !(strcpy(ide2.statfile, statpath))) 
-				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
-			if(debug)
-				printf("ide2.statfile is: %s \n", ide2.statfile);
-			ide2.hphdd = 3;
-			if( (ide2.rio = retbytes(ide2.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in hpex47x_init() ");
-			if( (ide2.wio = retbytes(ide2.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in hpex47x_init() ");	
-			hpex47x[numdisks] = ide2;
-			syslog(LOG_NOTICE,"Adding HP Disk 3 to monitor pool.");
-			syslog(LOG_NOTICE,"Statfile path for HP Disk 3 is %s",hpex47x[numdisks].statfile);
-
-			if(debug)
-				printf("Found HDD3 \n");
-		}
-		else if( (strcmp(host_bus,"2:0:1:0")) == 0 ) {
+		// else if( (strcmp(host_bus,"1:0:1:0")) == 0 ) {
+		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2))))) {
 			if( (ide3.statfile = (char *)calloc(128, sizeof(char))) == NULL)
 				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
 			if( !(strcpy(ide3.statfile, statpath))) 
