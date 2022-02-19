@@ -426,8 +426,8 @@ int plt(int led)
 /* turn off all led */
 int offled(int led)
 {
-	/* usleep(100000); // for a slightly longer delay - swap this for the below */
-	usleep(100000);
+	/* usleep(1000000); // for a slightly longer delay - swap this for the below */
+	usleep(50000);
 	/* doing this until I can figure out how to turn off the each light individually */
 	encreg = CTL;
 	outw(encreg, ADDR);
