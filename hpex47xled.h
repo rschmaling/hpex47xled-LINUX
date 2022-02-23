@@ -70,15 +70,18 @@ struct hpled {
 };
 
 void sigterm_handler(int s);
-int64_t retbytes( char* statfile, int field );
+int64_t retbytes(char* statfile, int field);
 void* hpex47x_init(void *);
 char* curdir(char *str);
 int show_help(char * progname );
 int show_version(char * progname );
-char* retpath( char* parent, char *delim, int field );
+char* retpath(char* parent, char *delim, int field);
 void drop_priviledges( void );
 int blt(int led);
 int rlt(int led);
 int plt(int led);
-int offled(int led);
+int offled(int led, int off_state);
+int led_set(int hphdd, int color, int offstate);
+void* hpex47x_thread_run (void *arg);
+
 
