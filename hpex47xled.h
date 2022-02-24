@@ -57,6 +57,13 @@
 #define PL3      (BL3 | RL3)// third purple led
 #define PL4      (BL4 | RL4)// forth purple led
 
+#define BLUE_CASE 1
+#define RED_CASE 2
+#define PURPLE_CASE 3
+#define LED_CASE_OFF 4
+
+#define HPDISKS 4 /* total number of bays in the HP Mediasmart Server EX47x */
+
 #define HDD1   1
 #define HDD2   2
 #define HDD3   3
@@ -83,5 +90,6 @@ int plt(int led);
 int offled(int led, int off_state);
 int led_set(int hphdd, int color, int offstate);
 void* hpex47x_thread_run (void *arg);
+void start_led(void);
 
 

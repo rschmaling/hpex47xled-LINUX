@@ -62,7 +62,8 @@ pthread_t hpexled_led[4]; /* there can be only 4! */
 
 // 0 is read I/Os, 4 is write I/Os in the /sys/devices/* /stat file 
 
-char* retpath( char* parent, char *delim, int field ){
+char* retpath( char* parent, char *delim, int field )
+{
 
     char *last_token = NULL;
     char *copy_parent = NULL;
@@ -100,7 +101,8 @@ char* retpath( char* parent, char *delim, int field ){
     return found;
 }
 
-int64_t retbytes(char* statfile, int field){
+int64_t retbytes(char* statfile, int field)
+{
 
     const char *delimiter_characters = " ";
     char buffer[ BUFFER_SIZE ];
@@ -152,13 +154,13 @@ int64_t retbytes(char* statfile, int field){
 
 }
 
-void* hpex47x_thread_run (void *arg){
+void* hpex47x_thread_run (void *arg)
+{
 	int64_t n_rio, n_wio = 0;
 	struct hpled hpex47x = *(struct hpled *)arg;
 	/* leds are turned off prior to thread launch, they may be on in another thread but here we assume they are off */
 	int led_state = 0; 
 	int led_light = 0; /* 1 = blue    2 = red    3 = purple */
-
 	while(thread_run) {
 
 			n_rio = retbytes(hpex47x.statfile, 0);
@@ -176,8 +178,9 @@ void* hpex47x_thread_run (void *arg){
 					printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				led_light = 3;
-				led_state = led_set(hpex47x.hphdd, 2, led_light);
+				// led_state = led_set(hpex47x.hphdd, 2, led_light);
+				led_light = PURPLE_CASE;
+				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
 			}
 			else if( hpex47x.rio != n_rio ) {
 
@@ -187,8 +190,9 @@ void* hpex47x_thread_run (void *arg){
 					printf("Read I/O only and is: %li \n", n_rio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				led_light = 3;
-				led_state = led_set(hpex47x.hphdd, 2, led_light);
+				// led_state = led_set(hpex47x.hphdd, 2, led_light);
+				led_light = PURPLE_CASE;
+				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
 			}
 			else if( hpex47x.wio != n_wio ) {
 
@@ -198,8 +202,8 @@ void* hpex47x_thread_run (void *arg){
 					printf("Write I/O only and is: %li \n", n_wio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				led_light = 1;
-				led_state = led_set(hpex47x.hphdd, 1, led_light);
+				led_light = BLUE_CASE;
+				led_state = led_set(hpex47x.hphdd, BLUE_CASE, led_light);
 			}
 			else {
 				/* turn off all the lights */
@@ -207,14 +211,15 @@ void* hpex47x_thread_run (void *arg){
 				if(led_state == 0) {
 					continue;
 				}
-				led_state = led_set(hpex47x.hphdd, 4, led_light);
+				led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
 			}
 	}
 	pthread_exit(NULL);   
 
 }
 
-void* hpex47x_init (void *) {
+void* hpex47x_init (void *) 
+{
 
 	struct udev *udev = NULL;
 	struct udev_enumerate *enumerate = NULL;
@@ -432,8 +437,7 @@ void* hpex47x_init (void *) {
 /* blue led toggle */
 int blt(int led)
 {
-	encreg = inw(ADDR);
-
+   encreg = inw(ADDR);
    switch (led) {
       case HDD1:
 	     // encreg = encreg ^ BL3;
@@ -461,6 +465,7 @@ int blt(int led)
 /* red led toggle */
 int rlt(int led)
 {
+   encreg = inw(ADDR);
    switch (led) {
       case HDD1:
          // encreg = encreg ^ RL1;
@@ -487,6 +492,7 @@ int rlt(int led)
 /* purple led toggle */
 int plt(int led)
 {
+	encreg = inw(ADDR);
 	switch (led) {
   	   case HDD1:
 	      // encreg = encreg ^ PL1;
@@ -576,13 +582,56 @@ int offled(int led, int off_state)
 	return(led_state);
 }
 
+void start_led(void) 
+{
+	
+	int numtimes = 3;
+	int color = 1;
+	int i,j = 0;
+
+	outw(CTL, ADDR);
+	
+	while( numtimes >= 1) {
+		for( i = 1; i<=HPDISKS; i++){
+			led_set(i, color, 1);
+			usleep(30000);
+		}
+		for( j = i; j >= 1; j--) {
+			led_set(j, 4, color);
+			usleep(30000);
+		}
+		++color;
+		--numtimes;
+
+	}
+	usleep(50000);
+
+	numtimes = 1;
+	color = 1;
+	while( numtimes <= 3) {
+		for( i = 4; i >= 1; i--){
+			led_set(i, color, 1);
+			usleep(30000);
+		}
+		for( j = i; j <= 4; j++) {
+			led_set(j, 4, color);
+			usleep(30000);
+		}
+		++color;
+		++numtimes;
+
+	}
+	outw(CTL, ADDR);	
+}
+
 char* curdir(char *str)
 {
 	char *cp = strrchr(str, '/');
 	return cp ? cp+1 : str;
 }
 
-int show_help(char * progname ) {
+int show_help(char * progname ) 
+{
 
 	char *this = curdir(progname);
 	printf("%s %s %s", "Usage: ", this,"\n");
@@ -594,13 +643,15 @@ int show_help(char * progname ) {
        return 0;
 }
 
-int show_version(char * progname ) {
+int show_version(char * progname ) 
+{
 	char *this = curdir(progname);
         printf("%s %s %s %s %s %s",this,"Version 1.0.2 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
         return 0;
 }
 
-void drop_priviledges( void ) {
+void drop_priviledges( void ) 
+{
 	struct passwd* pw = getpwnam( "nobody" );
 	if ( !pw ) return; /* huh? */
 	if ( (setgid( pw->pw_gid )) && (setuid( pw->pw_uid )) != 0 )
@@ -612,30 +663,34 @@ void drop_priviledges( void ) {
 	}
 }
 
-int led_set(int hphdd, int color, int offstate) {
+int led_set(int hphdd, int color, int offstate) 
+{
 	// pthread_mutex_lock(&hpex47xLedMutex);
 	/* we don't use offstate except to turn off the LEDs */
+	int led_return = 0;
 	switch( color ) {
 		case 1:
-				blt(hphdd);
+				led_return = blt(hphdd);
 				break;
 		case 2:
-				plt(hphdd);
+				led_return = rlt(hphdd);
 				break;
 		case 3:
-				rlt(hphdd);
+				led_return = plt(hphdd);
 				break;
 		case 4:
-				offled(hphdd, offstate);
+				led_return = offled(hphdd, offstate);
 				break;
 		default:
-				offled(hphdd, offstate);
+				led_return = offled(hphdd, offstate);
 	}
 	// pthread_mutex_unlock(&hpex47xLedMutex);	
-	return 1;
+	// return 1;
+	return led_return;
 }
 
-int main (int argc, char** argv) {
+int main (int argc, char** argv) 
+{
 
 	int run_as_daemon = 0;
 	int num_threads = 0;
@@ -698,7 +753,7 @@ int main (int argc, char** argv) {
 		perror("ioperm"); 
 		exit(1);
 	}
-	outw(CTL, ADDR); /* since we aren't doing this by disk - send it anything */
+	
 	signal( SIGTERM, sigterm_handler);
 	signal( SIGINT, sigterm_handler);
 	signal( SIGQUIT, sigterm_handler);
@@ -720,6 +775,8 @@ int main (int argc, char** argv) {
 			err(1, "Unable to daemonize :");
 		syslog(LOG_NOTICE,"Forking to background, running in daemon mode");
 	}
+	
+	start_led();
 
 	for(int i = 0; i < *hpdisks; i++) {
         if ( (pthread_create(&hpexled_led[i], &attr, &hpex47x_thread_run, &hpex47x[i])) != 0)
@@ -728,7 +785,7 @@ int main (int argc, char** argv) {
         if(debug)
 			printf("HP HDD is %d - created thread %i \n", hpex47x[i].hphdd, num_threads);
     }
-    
+
 	syslog(LOG_NOTICE,"Initialized monitor threads. Monitoring with %i threads", num_threads);
 	syslog(LOG_NOTICE,"Initialized. Now monitoring for drive activity - Enjoy the light show!");
 
