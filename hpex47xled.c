@@ -817,7 +817,7 @@ void sigterm_handler(int s)
 	if( hpdisks != NULL) {
 		for(int i = 0; i < *hpdisks; i++) {
 			if ( (pthread_join(hpexled_led[i], NULL)) != 0)
-				err(1, "Unable to join threads - pthread_join in main() before close");
+			err(1, "Unable to join threads - pthread_join in main() before close");
 		}
 
 	}	
