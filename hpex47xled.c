@@ -50,6 +50,7 @@
 #include "hpex47xled.h"
 
 #define BUFFER_SIZE 1024 
+#define BLINK_DELAY 65000 // This is the usleep delay for blinking the LEDs
 
 struct hpled ide0, ide1, ide2, ide3 ;
 struct hpled hpex47x[4];
@@ -158,8 +159,7 @@ void* hpex47x_thread_run (void *arg)
 {
 	int64_t n_rio, n_wio = 0;
 	struct hpled hpex47x = *(struct hpled *)arg;
-	/* leds are turned off prior to thread launch, they may be on in another thread but here we assume they are off */
-	int led_state = 0; 
+	int led_state = 0;
 	int led_light = 0; /* 1 = blue    2 = red    3 = purple */
 	while(thread_run) {
 
@@ -178,9 +178,10 @@ void* hpex47x_thread_run (void *arg)
 					printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				// led_state = led_set(hpex47x.hphdd, 2, led_light);
+				// led_set(hpex47x.hphdd, 2, led_light);
 				led_light = PURPLE_CASE;
 				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
+
 			}
 			else if( hpex47x.rio != n_rio ) {
 
@@ -190,7 +191,7 @@ void* hpex47x_thread_run (void *arg)
 					printf("Read I/O only and is: %li \n", n_rio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				// led_state = led_set(hpex47x.hphdd, 2, led_light);
+				// led_set(hpex47x.hphdd, 2, led_light);
 				led_light = PURPLE_CASE;
 				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
 			}
@@ -207,11 +208,14 @@ void* hpex47x_thread_run (void *arg)
 			}
 			else {
 				/* turn off all the lights */
-				usleep(65000);
-				if(led_state == 0) {
+				usleep(BLINK_DELAY);
+				if (led_state == 0) {
+					if ( inw(ADDR) != OFFSTATE )
+						led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
 					continue;
 				}
 				led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
+
 			}
 	}
 	pthread_exit(NULL);   
@@ -223,7 +227,6 @@ void* hpex47x_init (void *)
 
 	struct udev *udev = NULL;
 	struct udev_enumerate *enumerate = NULL;
-	struct udev_monitor *device_monitor = NULL;
 	struct udev_list_entry *devices = NULL;
 	struct udev_device *dev = NULL;
 	char *statpath = NULL;
@@ -236,13 +239,6 @@ void* hpex47x_init (void *)
 		err(1, "Unable to create struct udev in hpex47x_init() ");
 	
 	enumerate = udev_enumerate_new(udev); 
-	device_monitor = udev_monitor_new_from_netlink(udev, "udev");
-
-	if(!device_monitor)
-		err(1, "Cannot create device_monitor in hpex47x_init() ");
-
-	if( udev_monitor_filter_add_match_subsystem_devtype(device_monitor, "scsi", "scsi_device") )
-		err(1, "Unable to build filter add match in hpex47x_init() ");
 
 	udev_enumerate_add_match_subsystem(enumerate, "block");
 	udev_enumerate_add_match_property(enumerate, "ID_BUS", "ata");
@@ -414,8 +410,6 @@ void* hpex47x_init (void *)
 	enumerate = udev_enumerate_unref(enumerate);
 
 	udev = udev_unref(udev);
-
-	device_monitor = udev_monitor_unref(device_monitor);
 
 	if( statpath != NULL ) {
 		if (debug) 
@@ -817,7 +811,7 @@ void sigterm_handler(int s)
 	if( hpdisks != NULL) {
 		for(int i = 0; i < *hpdisks; i++) {
 			if ( (pthread_join(hpexled_led[i], NULL)) != 0)
-			err(1, "Unable to join threads - pthread_join in main() before close");
+				err(1, "Unable to join threads - pthread_join in main() before close");
 		}
 
 	}	
