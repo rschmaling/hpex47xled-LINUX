@@ -49,9 +49,6 @@
 
 #include "hpex47xled.h"
 
-#define BUFFER_SIZE 1024 
-#define BLINK_DELAY 65000 // This is the usleep delay for blinking the LEDs
-
 struct hpled ide0, ide1, ide2, ide3 ;
 struct hpled hpex47x[4];
 int debug = 0;
@@ -161,6 +158,8 @@ void* hpex47x_thread_run (void *arg)
 	struct hpled hpex47x = *(struct hpled *)arg;
 	int led_state = 0;
 	int led_light = 0; /* 1 = blue    2 = red    3 = purple */
+	struct timespec tv = { .tv_sec = 0, .tv_nsec = BLINK_DELAY };
+
 	while(thread_run) {
 
 			n_rio = retbytes(hpex47x.statfile, 0);
@@ -206,7 +205,9 @@ void* hpex47x_thread_run (void *arg)
 			}
 			else {
 				/* turn off the active light */
-				usleep(BLINK_DELAY);
+				if( nanosleep(&tv, NULL) < 0)
+					err(1, "nanosleep() system call failed");
+
 				if ( (led_state != 0) || ( inw(ADDR) != OFFSTATE) ) {
 					led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
 				}

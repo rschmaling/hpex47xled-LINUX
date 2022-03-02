@@ -12,6 +12,8 @@
 #include <sys/io.h>
 #include <pwd.h>
 #include <pthread.h>
+#include <time.h>
+#include <sys/time.h>
 
 /* defines */
 /*
@@ -69,6 +71,9 @@
 #define HDD2   2
 #define HDD3   3
 #define HDD4   4
+
+#define BUFFER_SIZE 1024 
+#define BLINK_DELAY 65000000 // for nanosleep() timespec struct - blinking delay for LEDs in nanoseconds
 
 struct hpled {
         char* statfile;
