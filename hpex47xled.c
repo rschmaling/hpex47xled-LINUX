@@ -178,7 +178,6 @@ void* hpex47x_thread_run (void *arg)
 					printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				// led_set(hpex47x.hphdd, 2, led_light);
 				led_light = PURPLE_CASE;
 				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
 
@@ -191,7 +190,6 @@ void* hpex47x_thread_run (void *arg)
 					printf("Read I/O only and is: %li \n", n_rio);
 					printf("HP HDD is: %i \n", hpex47x.hphdd);
 				}
-				// led_set(hpex47x.hphdd, 2, led_light);
 				led_light = PURPLE_CASE;
 				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
 			}
@@ -207,14 +205,12 @@ void* hpex47x_thread_run (void *arg)
 				led_state = led_set(hpex47x.hphdd, BLUE_CASE, led_light);
 			}
 			else {
-				/* turn off all the lights */
+				/* turn off the active light */
 				usleep(BLINK_DELAY);
-				if (led_state == 0) {
-					if ( inw(ADDR) != OFFSTATE )
-						led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
-					continue;
+				if ( (led_state != 0) || ( inw(ADDR) != OFFSTATE) ) {
+					led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
 				}
-				led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
+				continue;
 
 			}
 	}
