@@ -7,6 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <err.h>
+#include <errno.h>
 #include <syslog.h>
 #include <getopt.h>
 #include <sys/io.h>
@@ -84,7 +85,7 @@ struct hpled {
 
 void sigterm_handler(int s);
 int64_t retbytes(char* statfile, int field);
-void* hpex47x_init(void *);
+void* hpex47x_init(void *arg);
 char* curdir(char *str);
 int show_help(char * progname );
 int show_version(char * progname );
@@ -98,4 +99,4 @@ int led_set(int hphdd, int color, int offstate);
 void* hpex47x_thread_run (void *arg);
 void start_led(void);
 
-
+pthread_spinlock_t  hpex47x_gpio_lock;

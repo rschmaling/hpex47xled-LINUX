@@ -55,7 +55,6 @@ int debug = 0;
 u_int16_t encreg;
 int* hpdisks = NULL;
 int thread_run = 1; 
-pthread_mutex_t hpex47xLedMutex;
 pthread_t hpexled_led[4]; /* there can be only 4! */
 
 // 0 is read I/Os, 4 is write I/Os in the /sys/devices/* /stat file 
@@ -107,7 +106,7 @@ int64_t retbytes(char* statfile, int field)
     char *last_token;
     char *end;
     int token = 0;
-    int found = 0;
+    int64_t found = 0;
 
     FILE *input_file = fopen( statfile, "r" );
 
@@ -131,7 +130,7 @@ int64_t retbytes(char* statfile, int field)
 						err(1, "Unable to convert string to int64_t in retbytes()");
 
 					if(debug)
-                        	printf("The value of field %i is %i \n", token, found);
+                        	printf("The value of field %i is %li \n", token, found);
 					break;
                 }
                 last_token = strtok( NULL, delimiter_characters );
@@ -162,56 +161,62 @@ void* hpex47x_thread_run (void *arg)
 
 	while(thread_run) {
 
-			n_rio = retbytes(hpex47x.statfile, 0);
-			n_wio = retbytes(hpex47x.statfile, 4);
+		if( (pthread_spin_lock(&hpex47x_gpio_lock)) != 0)
+			err(1,"invalid return from pthread_spin_lock in %s line %d", __FUNCTION__, __LINE__);
+
+		n_rio = retbytes(hpex47x.statfile, 0);
+		n_wio = retbytes(hpex47x.statfile, 4);
 			
-			if(debug)
-				printf("the disk is: %i \n", hpex47x.hphdd);
+		if( (pthread_spin_unlock(&hpex47x_gpio_lock)) != 0)
+			err(1, "invalid return from pthread_spin_unlock in %s line %d", __FUNCTION__, __LINE__);	
 
-			if( ( hpex47x.rio != n_rio ) && ( hpex47x.wio != n_wio) ) {
+		if(debug)
+			printf("the disk is: %i \n", hpex47x.hphdd);
 
-				hpex47x.rio = n_rio;
-				hpex47x.wio = n_wio;
+		if( ( hpex47x.rio != n_rio ) && ( hpex47x.wio != n_wio) ) {
 
-				if(debug) {
-					printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
-					printf("HP HDD is: %i \n", hpex47x.hphdd);
-				}
-				led_light = PURPLE_CASE;
-				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
+			hpex47x.rio = n_rio;
+			hpex47x.wio = n_wio;
 
+			if(debug) {
+				printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
+				printf("HP HDD is: %i \n", hpex47x.hphdd);
 			}
-			else if( hpex47x.rio != n_rio ) {
+			led_light = PURPLE_CASE;
+			led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
 
-				hpex47x.rio = n_rio;
+		}
+		else if( hpex47x.rio != n_rio ) {
 
-				if(debug) {
-					printf("Read I/O only and is: %li \n", n_rio);
-					printf("HP HDD is: %i \n", hpex47x.hphdd);
-				}
-				led_light = PURPLE_CASE;
-				led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
+			hpex47x.rio = n_rio;
+
+			if(debug) {
+				printf("Read I/O only and is: %li \n", n_rio);
+				printf("HP HDD is: %i \n", hpex47x.hphdd);
 			}
-			else if( hpex47x.wio != n_wio ) {
+			led_light = PURPLE_CASE;
+			led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
+		}
+		else if( hpex47x.wio != n_wio ) {
 
-				hpex47x.wio = n_wio;
+			hpex47x.wio = n_wio;
 
-				if(debug) {
-					printf("Write I/O only and is: %li \n", n_wio);
-					printf("HP HDD is: %i \n", hpex47x.hphdd);
-				}
-				led_light = BLUE_CASE;
-				led_state = led_set(hpex47x.hphdd, BLUE_CASE, led_light);
+			if(debug) {
+				printf("Write I/O only and is: %li \n", n_wio);
+				printf("HP HDD is: %i \n", hpex47x.hphdd);
 			}
-			else {
-				/* turn off the active light */
-				if( nanosleep(&tv, NULL) < 0)
-					err(1, "nanosleep() system call failed");
+			led_light = BLUE_CASE;
+			led_state = led_set(hpex47x.hphdd, BLUE_CASE, led_light);
+		}
+		else {
+			/* turn off the active light */
+			if( nanosleep(&tv, NULL) < 0)
+				err(1, "nanosleep() system call failed");
 
-				if ( (led_state != 0) || ( inw(ADDR) != OFFSTATE) ) {
-					led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
-				}
-				continue;
+			if ( (led_state != 0) || ( inw(ADDR) != OFFSTATE) ) {
+				led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
+			}
+			continue;
 
 			}
 	}
@@ -219,7 +224,7 @@ void* hpex47x_thread_run (void *arg)
 
 }
 
-void* hpex47x_init (void *) 
+void* hpex47x_init(void *arg) 
 {
 
 	struct udev *udev = NULL;
@@ -431,21 +436,17 @@ int blt(int led)
    encreg = inw(ADDR);
    switch (led) {
       case HDD1:
-	     // encreg = encreg ^ BL3;
          encreg &= ~BL1;
          break;
       case HDD2:
-         // encreg = encreg ^ BL2;
          encreg &= ~BL2;
-		 break;
+	 break;
       case HDD3:
-         // encreg = encreg ^ BL3;
          encreg &= ~BL3;
-		 break;
+	 break;
       case HDD4:
-         // encreg = encreg ^ BL4;
          encreg &= ~BL4;
-		 break;
+	 break;
    }
 
 	outw(encreg, ADDR);
@@ -459,20 +460,16 @@ int rlt(int led)
    encreg = inw(ADDR);
    switch (led) {
       case HDD1:
-         // encreg = encreg ^ RL1;
-		 encreg &= ~RL1;
+	 encreg &= ~RL1;
          break;
       case HDD2:
-         // encreg = encreg ^ RL2;
-		 encreg &= ~RL2;
+	 encreg &= ~RL2;
          break;
       case HDD3:
-         // encreg = encreg ^ RL3;
-		 encreg &= ~RL3;
+	 encreg &= ~RL3;
          break;
       case HDD4:
-         // encreg = encreg ^ RL4;
-		 encreg &= ~RL4;
+	 encreg &= ~RL4;
          break;
    }
    outw(encreg, ADDR);
@@ -486,20 +483,16 @@ int plt(int led)
 	encreg = inw(ADDR);
 	switch (led) {
   	   case HDD1:
-	      // encreg = encreg ^ PL1;
-		  encreg &= ~PL1;
+ 	      encreg &= ~PL1;
 	      break;
 	   case HDD2:
-	      // encreg = encreg ^ PL2;
-		  encreg &= ~PL2;
+	      encreg &= ~PL2;
 	      break;
 	   case HDD3:
-	      // encreg = encreg ^ PL3;
-		  encreg &= ~PL3;
+  	      encreg &= ~PL3;
 	      break;
 	   case HDD4:
-	      // encreg = encreg ^ PL4;
-		  encreg &= ~PL4;
+	      encreg &= ~PL4;
 	      break;
 	}
 	outw(encreg, ADDR);
@@ -509,12 +502,7 @@ int plt(int led)
 /* turn off all led */
 int offled(int led, int off_state)
 {
-	/* usleep(1000000); // for a slightly longer delay - swap this for the below */
-	/* usleep(50000); */
-	/* doing this until I can figure out how to turn off the each light individually */
-	// encreg = CTL;
 	/* 1 = blue    2 = red    3 = purple */
-	// pthread_mutex_lock(&hpex47xLedMutex); // do I need this? 
 	encreg = inw(ADDR);
 	switch( off_state ) {
 		case 1:
@@ -568,7 +556,6 @@ int offled(int led, int off_state)
 
 	}
 	outw(encreg, ADDR);
-	// pthread_mutex_unlock(&hpex47xLedMutex); // do I need this?
 	int led_state = 0;
 	return(led_state);
 }
@@ -656,7 +643,6 @@ void drop_priviledges( void )
 
 int led_set(int hphdd, int color, int offstate) 
 {
-	// pthread_mutex_lock(&hpex47xLedMutex);
 	/* we don't use offstate except to turn off the LEDs */
 	int led_return = 0;
 	switch( color ) {
@@ -675,7 +661,6 @@ int led_set(int hphdd, int color, int offstate)
 		default:
 				led_return = offled(hphdd, offstate);
 	}
-	// pthread_mutex_unlock(&hpex47xLedMutex);	
 	// return 1;
 	return led_return;
 }
@@ -698,12 +683,12 @@ int main (int argc, char** argv)
 
 	// long command line arguments
 	//
-        const struct option long_opts[] = {
-                { "debug",          no_argument,       0, 'd' },
-                { "daemon",         no_argument,       0, 'D' },
-                { "help",           no_argument,       0, 'h' },
-                { "version",        no_argument,       0, 'v' },
-                { 0, 0, 0, 0 },
+    const struct option long_opts[] = {
+        { "debug",          no_argument,       0, 'd' },
+        { "daemon",         no_argument,       0, 'D' },
+        { "help",           no_argument,       0, 'h' },
+        { "version",        no_argument,       0, 'v' },
+        { 0, 0, 0, 0 },
         };
 
         // pass command line arguments
@@ -731,11 +716,11 @@ int main (int argc, char** argv)
 	
 	openlog("hpex47xled:", LOG_CONS | LOG_PID, LOG_DAEMON );
 
-	if ((pthread_mutex_init(&hpex47xLedMutex, NULL)) != 0)
-		err(1, "Unable to initialize hpex47xLedMutex in main()");
+	if( (pthread_spin_init(&hpex47x_gpio_lock, PTHREAD_PROCESS_PRIVATE)) !=0 )
+		err(1,"Unable to initialize spin_lock in %s at %d", __FUNCTION__, __LINE__);
 
 	if ((pthread_attr_init(&attr)) < 0 )
-		err(1, "Unable to execute pthread_attr_init(&attr) in main()");
+		err(1, "Unable to execute pthread_attr_init(&attr) in %s", __FUNCTION__);
 
 	if( (pthread_create(&tid, &attr, hpex47x_init, NULL)) != 0)
 		err(1, "Unable to init in main - bad return from hpex47x_init() ");
@@ -793,8 +778,7 @@ int main (int argc, char** argv)
 	}
 	outw(CTL, ADDR);
 	syslog(LOG_NOTICE,"Standard Close of Program");	
-	pthread_mutex_destroy(&hpex47xLedMutex);
-    pthread_attr_destroy(&attr);
+	pthread_attr_destroy(&attr);
 	ioperm(ADDR, 8, 0);
 	closelog();
 	free(hpdisks);
@@ -812,7 +796,9 @@ void sigterm_handler(int s)
 		}
 
 	}	
-	pthread_mutex_destroy(&hpex47xLedMutex);
+	if( (pthread_spin_destroy(&hpex47x_gpio_lock)) != 0 )
+		perror("pthread_spin_destroy");
+
 	syslog(LOG_NOTICE,"Shutting Down on Signal");
 	closelog();
 	if (hpdisks != NULL) {
