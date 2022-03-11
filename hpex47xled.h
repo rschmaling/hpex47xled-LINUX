@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 
 #include <libudev.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <sys/time.h>
+#include <assert.h>
 
 /* defines */
 /*
@@ -78,7 +80,7 @@
 
 struct hpled {
         char* statfile;
-        int hphdd;
+        size_t hphdd;
         int64_t rio;
         int64_t wio;
 };
@@ -99,4 +101,5 @@ int led_set(int hphdd, int color, int offstate);
 void* hpex47x_thread_run (void *arg);
 void start_led(void);
 
+/* using spinlocks vs. mutex as the thread should spin vs. sleep to stay (mostly) in sync. */
 pthread_spinlock_t  hpex47x_gpio_lock;

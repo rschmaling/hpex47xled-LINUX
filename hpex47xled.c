@@ -56,6 +56,8 @@ u_int16_t encreg;
 int* hpdisks = NULL;
 int thread_run = 1; 
 pthread_t hpexled_led[4]; /* there can be only 4! */
+// Create Thread Attributes - put here for clean-up purposes
+pthread_attr_t attr;
 
 // 0 is read I/Os, 4 is write I/Os in the /sys/devices/* /stat file 
 
@@ -68,10 +70,10 @@ char* retpath( char* parent, char *delim, int field )
     char* found = NULL;
 
 	if( (copy_parent = (char *)calloc((strlen(parent) + 2), sizeof(char))) == NULL)
-		err(1, "Unable to allocate copy_parnet for copy from char* parent in retpath() ");
+		err(1, "Unable to allocate copy_parnet for copy from char* parent in %s line %d ", __FUNCTION__, __LINE__);
 
 	if( !(strcpy(copy_parent, parent)))
-		err(1, "Unable to strcpy() parent into copy_parent in retpath() ");
+		err(1, "Unable to strcpy() parent into copy_parent in %s line %d ", __FUNCTION__, __LINE__);
 
 	if(delim == NULL)
 		err(1, "Unknown or illegal delimiter in repath()");
@@ -82,11 +84,11 @@ char* retpath( char* parent, char *delim, int field )
 		if( token == field) {
 			// found = last_token;
 			if( (found = (char *)calloc((strlen(last_token) + 2), sizeof(char))) == NULL)
-				err(1, "Unable to allocate found for copy from char * token in retpath() ");
+				err(1, "Unable to allocate found for copy from char * token in %s line %d ", __FUNCTION__, __LINE__);
 			if( !(strcpy(found, last_token)))
-				err(1, "Unable to strcpy() token into found in retpath() ");
+				err(1, "Unable to strcpy() token into found in %s line %d ", __FUNCTION__, __LINE__);
 			if(debug)
-				printf("The value of retpath field %i is %s \n", token, found);
+				printf("The value of retpath field %i is %s in %s line %d \n", token, found, __FUNCTION__, __LINE__);
 			break;
                 }
                 last_token = strtok( NULL, delim );
@@ -111,7 +113,7 @@ int64_t retbytes(char* statfile, int field)
     FILE *input_file = fopen( statfile, "r" );
 
     if( input_file == NULL ) {
-		err(1, "Unable to open statfile in retbytes() ");
+		err(1, "Unable to open statfile in %s line %d ", __FUNCTION__, __LINE__);
     }
     else {
 
@@ -127,7 +129,7 @@ int64_t retbytes(char* statfile, int field)
                 if( token == field) {
                         found = strtoll( last_token, &end, 10 );
 					if(*end)
-						err(1, "Unable to convert string to int64_t in retbytes()");
+						err(1, "Unable to convert string to int64_t in %s line %d ", __FUNCTION__, __LINE__);
 
 					if(debug)
                         	printf("The value of field %i is %li \n", token, found);
@@ -171,7 +173,7 @@ void* hpex47x_thread_run (void *arg)
 			err(1, "invalid return from pthread_spin_unlock in %s line %d", __FUNCTION__, __LINE__);	
 
 		if(debug)
-			printf("the disk is: %i \n", hpex47x.hphdd);
+			printf("the disk is: %li \n", hpex47x.hphdd);
 
 		if( ( hpex47x.rio != n_rio ) && ( hpex47x.wio != n_wio) ) {
 
@@ -180,7 +182,7 @@ void* hpex47x_thread_run (void *arg)
 
 			if(debug) {
 				printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
-				printf("HP HDD is: %i \n", hpex47x.hphdd);
+				printf("HP HDD is: %li \n", hpex47x.hphdd);
 			}
 			led_light = PURPLE_CASE;
 			led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
@@ -192,7 +194,7 @@ void* hpex47x_thread_run (void *arg)
 
 			if(debug) {
 				printf("Read I/O only and is: %li \n", n_rio);
-				printf("HP HDD is: %i \n", hpex47x.hphdd);
+				printf("HP HDD is: %li \n", hpex47x.hphdd);
 			}
 			led_light = PURPLE_CASE;
 			led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
@@ -203,15 +205,15 @@ void* hpex47x_thread_run (void *arg)
 
 			if(debug) {
 				printf("Write I/O only and is: %li \n", n_wio);
-				printf("HP HDD is: %i \n", hpex47x.hphdd);
+				printf("HP HDD is: %li \n", hpex47x.hphdd);
 			}
 			led_light = BLUE_CASE;
 			led_state = led_set(hpex47x.hphdd, BLUE_CASE, led_light);
 		}
 		else {
 			/* turn off the active light */
-			if( nanosleep(&tv, NULL) < 0)
-				err(1, "nanosleep() system call failed");
+			assert(nanosleep(&tv, NULL) >= 0);
+			nanosleep(&tv, NULL);
 
 			if ( (led_state != 0) || ( inw(ADDR) != OFFSTATE) ) {
 				led_state = led_set(hpex47x.hphdd, LED_CASE_OFF, led_light);
@@ -233,12 +235,14 @@ void* hpex47x_init(void *arg)
 	struct udev_device *dev = NULL;
 	char *statpath = NULL;
 	char *ppath = NULL;
-	int numdisks = 0;
+	char *check_ATA = NULL;
+	char *check_HOST_BUS = NULL;
+	size_t numdisks = 0;
 
 	udev = udev_new();
 
 	if (!udev)
-		err(1, "Unable to create struct udev in hpex47x_init() ");
+		err(1, "Unable to create struct udev in %s", __FUNCTION__);
 	
 	enumerate = udev_enumerate_new(udev); 
 
@@ -262,27 +266,30 @@ void* hpex47x_init(void *arg)
 		/* udev_device_get_devpath(dev);  the path under sys - so strips off /sys from the entry */
 
 		if( !dev )
-			err(1, "Unable to retrieve dev from udev_device_new_from_syspath in hpex47x_init() ");
+			err(1, "Unable to retrieve dev from udev_device_new_from_syspath in %s", __FUNCTION__);
 
 		if( (!(strcmp("ata", udev_device_get_property_value(dev, "ID_BUS")) == 0) && (strcmp("disk", udev_device_get_devtype(dev)) == 0)) || (strcmp("partition", udev_device_get_devtype(dev)) == 0) ) {
 			dev = udev_device_unref(dev);
 			continue;
 		}
 		if( (statpath = (char *)calloc(128, sizeof(char))) == NULL)
-			err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+			err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in %s", __FUNCTION__);
 
 		if( !(strcpy(statpath, path))) 
-			err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
-		
+			err(1, "Unable to strcpy() path into statpath in %s", __FUNCTION__);
+
+		if(! (check_ATA = retpath(statpath,"/",4)))
+			err(1, "NULL return from retpath in %s line %d", __FUNCTION__, __LINE__);
+
 		/* We only want these host busses as they are associated with the first (1, 2) and second (3, 4) set of drive bays */
-		if( ! (strcmp("ata1",(retpath(statpath, "/", 4)))) && ! (strcmp("ata2",(retpath(statpath, "/", 4)))))
+		if( ! (strcmp("ata1",check_ATA)) && ! (strcmp("ata2",check_ATA)))
 			continue;
 		
 		if(debug)
-			printf("Device host bus is: %s \n", retpath(statpath, "/", 4));
+			printf("Device host bus is: %s \n", check_ATA);
 		
 		if( (strcat(statpath, "/stat")) == NULL) 
-			err(1, "Unable to concatinate /stat to path in hpex47x_init()");
+			err(1, "Unable to concatinate /stat to path in %s", __FUNCTION__);
 
 		if ( debug ) {
 			printf("Device Node (/dev) path: %s\n", udev_device_get_devnode(dev));
@@ -293,41 +300,41 @@ void* hpex47x_init(void *arg)
 		/* reset to get parent device so we can scrape the last section and determine which bay is in use. */
 		dev = udev_device_get_parent(dev);
 		if (!dev)
-			err(1, "Unable to find parent path of scsi device in hpex47x_init() ");
+			err(1, "Unable to find parent path of scsi device in %s ", __FUNCTION__);
 
 		if( (ppath = (char *)calloc( 128 , sizeof(char)) ) == NULL )
-			err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+			err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in %s", __FUNCTION__);
 
 		if( !(strcpy(ppath, udev_device_get_devpath(dev)))) 
-			err(1, "Unable to memcpy() path into statpath in hpex47x_init() ");
+			err(1, "Unable to memcpy() path into statpath in %s ", __FUNCTION__);
 
 		if (debug)
 			printf("Device parent path is: %s \n", ppath);
 		
 		if( !(host_bus = retpath(ppath,"/",6)))
-			err(1, "NULL return from retpath in hpex47x_init()");
+			err(1, "NULL return from retpath in %s", __FUNCTION__);
 		if (debug)
 			printf("ppath is: %s - if shorter than expected, retpath is still destroying the original string value \n",ppath);
 		if (debug)
 			printf("The host_bus is : %s \n", host_bus);	
+		if(!(check_HOST_BUS = retpath(host_bus, ":", 2)))
+			err(1, "NULL return from retpath in %s line %d",__FUNCTION__, __LINE__);
 		if (debug)
-			printf("Field 2 of host_bus is: %s \n", retpath(host_bus, ":",2));
-
+			printf("Field 2 of host_bus is: %s \n", check_HOST_BUS);
 		/* since the HPEX47x only has 4 bays and they are located on either ata1 or ata2 with fixed a host bus - allocate them like this. */
 		// if( (strcmp(host_bus,"0:0:0:0")) == 0 ) {
-		if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2)))) == 0) {
-
+		if( (strcmp("ata1",check_ATA)) == 0 && (strcmp("0",check_HOST_BUS)) == 0) {
 			if( (ide0.statfile = (char *)calloc(128, sizeof(char))) == NULL)
-				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in %s line %d", __FUNCTION__, __LINE__);
 			if( !(strcpy(ide0.statfile, statpath))) 
-				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
+				err(1, "Unable to strcpy() path into statpath in %s line %d ", __FUNCTION__, __LINE__);
 			if(debug)
 				printf("ide0.statfile is: %s \n", ide0.statfile);
 			ide0.hphdd = 1;
 			if ( (ide0.rio = retbytes(ide0.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in hpex47x_init() ");
+			       err(1, "Error on return from retbytes in %s line %d ", __FUNCTION__, __LINE__);
 			if( (ide0.wio = retbytes(ide0.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in hpex47x_init() ");	
+				err(1, "Error on return from retbytes in %s line %d ", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide0;
 			syslog(LOG_NOTICE,"Adding HP Disk 1 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 1 is %s",hpex47x[numdisks].statfile);
@@ -336,18 +343,18 @@ void* hpex47x_init(void *arg)
 				printf("Found HDD1 \n");
 		}
 		// else if( (strcmp(host_bus,"0:0:1:0")) == 0 ) {
-		else if( (strcmp("ata1",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2)))) == 0) {
+		else if( (strcmp("ata1",check_ATA)) == 0 && (strcmp("1",check_HOST_BUS)) == 0) {
 			if( (ide1.statfile = (char *)calloc(128, sizeof(char))) == NULL)
-				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in %s line %d", __FUNCTION__, __LINE__);
 			if( !(strcpy(ide1.statfile, statpath))) 
-				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
+				err(1, "Unable to strcpy() path into statpath in %s line %d", __FUNCTION__, __LINE__);
 			if(debug)
 				printf("ide1.statfile is: %s \n", ide1.statfile);
 			ide1.hphdd = 2;
 			if( (ide1.rio = retbytes(ide1.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in hpex47x_init() ");
+			       err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);
 			if( (ide1.wio = retbytes(ide1.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in hpex47x_init() ");	
+				err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide1;
 			syslog(LOG_NOTICE,"Adding HP Disk 2 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 2 is %s",hpex47x[numdisks].statfile);
@@ -356,18 +363,18 @@ void* hpex47x_init(void *arg)
 				printf("Found HDD2 \n");
 		}
 		// else if( (strcmp(host_bus,"1:0:0:0")) == 0 ) {
-		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("0",(retpath(host_bus, ":", 2)))) == 0) {
+		else if( (strcmp("ata2",check_ATA)) == 0 && (strcmp("0",check_HOST_BUS)) == 0) {
 			if( (ide2.statfile = (char *)calloc(128, sizeof(char))) == NULL)
-				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in %s line %d", __FUNCTION__, __LINE__);
 			if( !(strcpy(ide2.statfile, statpath))) 
-				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
+				err(1, "Unable to strcpy() path into statpath in %s line %d", __FUNCTION__, __LINE__);
 			if(debug)
 				printf("ide2.statfile is: %s \n", ide2.statfile);
 			ide2.hphdd = 3;
 			if( (ide2.rio = retbytes(ide2.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in hpex47x_init() ");
+			       err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);
 			if( (ide2.wio = retbytes(ide2.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in hpex47x_init() ");	
+				err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide2;
 			syslog(LOG_NOTICE,"Adding HP Disk 3 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 3 is %s",hpex47x[numdisks].statfile);
@@ -376,18 +383,18 @@ void* hpex47x_init(void *arg)
 				printf("Found HDD3 \n");
 		}
 		// else if( (strcmp(host_bus,"1:0:1:0")) == 0 ) {
-		else if( (strcmp("ata2",(retpath(statpath,"/",4)))) == 0 && (strcmp("1",(retpath(host_bus, ":", 2)))) == 0) {
+		else if( (strcmp("ata2",check_ATA)) == 0 && (strcmp("1",check_HOST_BUS)) == 0) {
 			if( (ide3.statfile = (char *)calloc(128, sizeof(char))) == NULL)
-				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in hpex47x_init() ");
+				err(1, "Unable to allocate statfile for copy from udev_list_entry_get_name() in %s line %d", __FUNCTION__, __LINE__);
 			if( !(strcpy(ide3.statfile, statpath))) 
-				err(1, "Unable to strcpy() path into statpath in hpex47x_init() ");
+				err(1, "Unable to strcpy() path into statpath in %s line %d", __FUNCTION__, __LINE__);
 			if(debug)
 				printf("ide3.statfile is: %s \n", ide3.statfile);
 			ide3.hphdd = 4;
 			if( (ide3.rio = retbytes(ide3.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in hpex47x_init() ");
+			       err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);
 			if( (ide3.wio = retbytes(ide3.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in hpex47x_init() ");	
+				err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide3;
 			syslog(LOG_NOTICE,"Adding HP Disk 4 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 4 is %s",hpex47x[numdisks].statfile);
@@ -396,7 +403,7 @@ void* hpex47x_init(void *arg)
 				printf("Found HDD4 \n");
 		}
 		else 
-			err(1,"Unknown host bus found during udev_device_get_devpath(dev)");
+			err(1,"Unknown host bus found during udev_device_get_devpath(dev) in %s line %d", __FUNCTION__, __LINE__);
 
 		free(statpath);
 		statpath = NULL;
@@ -406,6 +413,10 @@ void* hpex47x_init(void *arg)
 		dev = NULL;
 		free(host_bus);
 		host_bus = NULL;
+		free(check_ATA);
+		check_ATA = NULL;
+		free(check_HOST_BUS);
+		check_HOST_BUS = NULL;
 		numdisks++;
 	}
 	/* Free the enumerator object */
@@ -415,13 +426,13 @@ void* hpex47x_init(void *arg)
 
 	if( statpath != NULL ) {
 		if (debug) 
-			printf("statpath is not equal to NULL prior to return free in hpex47x_init() \n");
+			printf("statpath is not equal to NULL prior to return free in %s line %d \n", __FUNCTION__, __LINE__);
 		free(statpath);
 		statpath = NULL;
 	}
 	if( ppath != NULL ) {
 		if(debug)
-			printf("ppath is not equal to NULL prior to return free in hpex47x_init() \n");
+			printf("ppath is not equal to NULL prior to return free in %s line %d \n", __FUNCTION__, __LINE__);
 		free(ppath);
 		ppath = NULL;
 	}
@@ -562,38 +573,39 @@ int offled(int led, int off_state)
 
 void start_led(void) 
 {
+	size_t numtimes = 3;
+	size_t color = 1;
+	size_t i,j = 0;
+	struct timespec tv = { .tv_sec = 0, .tv_nsec = 30000000 };
 	
-	int numtimes = 3;
-	int color = 1;
-	int i,j = 0;
-
 	outw(CTL, ADDR);
-	
+	assert(nanosleep(&tv, NULL) >= 0);
+
 	while( numtimes >= 1) {
 		for( i = 1; i<=HPDISKS; i++){
 			led_set(i, color, 1);
-			usleep(30000);
+			nanosleep(&tv, NULL);
 		}
 		for( j = i; j >= 1; j--) {
 			led_set(j, 4, color);
-			usleep(30000);
+			nanosleep(&tv, NULL);
 		}
 		++color;
 		--numtimes;
 
 	}
-	usleep(50000);
+	nanosleep(&tv, NULL);
 
 	numtimes = 1;
 	color = 1;
 	while( numtimes <= 3) {
 		for( i = 4; i >= 1; i--){
 			led_set(i, color, 1);
-			usleep(30000);
+			nanosleep(&tv, NULL);
 		}
 		for( j = i; j <= 4; j++) {
 			led_set(j, 4, color);
-			usleep(30000);
+			nanosleep(&tv, NULL);
 		}
 		++color;
 		++numtimes;
@@ -618,14 +630,14 @@ int show_help(char * progname )
 	printf("-h, --help	Print This Message\n");
 	printf("-v, --version	Print Version Information\n");
 
-       return 0;
+    return 0;
 }
 
 int show_version(char * progname ) 
 {
 	char *this = curdir(progname);
-        printf("%s %s %s %s %s %s",this,"Version 1.0.2 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
-        return 0;
+    printf("%s %s %s %s %s %s",this,"Version 1.0.2 compiled on", __DATE__,"at", __TIME__ ,"\n") ;
+    return 0;
 }
 
 void drop_priviledges( void ) 
@@ -644,6 +656,8 @@ void drop_priviledges( void )
 int led_set(int hphdd, int color, int offstate) 
 {
 	/* we don't use offstate except to turn off the LEDs */
+	if( (pthread_spin_lock(&hpex47x_gpio_lock)) != 0 )
+		err(1,"invalid return from pthread_spin_lock in %s line %d", __FUNCTION__, __LINE__);
 	int led_return = 0;
 	switch( color ) {
 		case 1:
@@ -661,20 +675,19 @@ int led_set(int hphdd, int color, int offstate)
 		default:
 				led_return = offled(hphdd, offstate);
 	}
-	// return 1;
+	if( (pthread_spin_unlock(&hpex47x_gpio_lock)) != 0)
+		err(1, "invalid return from pthread_spin_unlock in %s line %d", __FUNCTION__, __LINE__);
 	return led_return;
 }
 
 int main (int argc, char** argv) 
 {
 
-	int run_as_daemon = 0;
-	int num_threads = 0;
+	size_t run_as_daemon = 0;
+	size_t num_threads = 0;
 	
 	// Thread IDs
 	pthread_t tid;
-	// Create Thread Attributes
-	pthread_attr_t attr;
 
 	if (geteuid() !=0 ) {
 		printf("Try running as root to avoid Segfault and core dump \n");
@@ -720,10 +733,10 @@ int main (int argc, char** argv)
 		err(1,"Unable to initialize spin_lock in %s at %d", __FUNCTION__, __LINE__);
 
 	if ((pthread_attr_init(&attr)) < 0 )
-		err(1, "Unable to execute pthread_attr_init(&attr) in %s", __FUNCTION__);
+		err(1, "Unable to execute pthread_attr_init(&attr) in %s line %d", __FUNCTION__, __LINE__);
 
 	if( (pthread_create(&tid, &attr, hpex47x_init, NULL)) != 0)
-		err(1, "Unable to init in main - bad return from hpex47x_init() ");
+		err(1, "Unable to init in main - bad return from hpex47x_init() in %s line %d ", __FUNCTION__, __LINE__);
 
 	if (ioperm(ADDR,8,1)) {
 		perror("ioperm"); 
@@ -741,7 +754,7 @@ int main (int argc, char** argv)
 	drop_priviledges();
 
 	if( (pthread_join(tid,(void**)&hpdisks)) != 0)
-		err(1, "Unable to rejoin thread prior to execution in main()");
+		err(1, "Unable to rejoin thread prior to execution in %s line %d",__FUNCTION__, __LINE__);
 
 	if (debug)
 		printf("Disks are now: %i \n", *hpdisks);
@@ -754,30 +767,31 @@ int main (int argc, char** argv)
 	
 	start_led();
 
-	for(int i = 0; i < *hpdisks; i++) {
+	for(size_t i = 0; i < *hpdisks; i++) {
         if ( (pthread_create(&hpexled_led[i], &attr, &hpex47x_thread_run, &hpex47x[i])) != 0)
-			err(1, "Unable to create thread for hpex47x_thread_run");
+			err(1, "Unable to create thread for hpex47x_thread_run in %s line %d", __FUNCTION__, __LINE__);
         ++num_threads;
         if(debug)
-			printf("HP HDD is %d - created thread %i \n", hpex47x[i].hphdd, num_threads);
+			printf("HP HDD is %li - created thread %li \n", hpex47x[i].hphdd, num_threads);
     }
 
-	syslog(LOG_NOTICE,"Initialized monitor threads. Monitoring with %i threads", num_threads);
+	syslog(LOG_NOTICE,"Initialized monitor threads. Monitoring with %li threads", num_threads);
 	syslog(LOG_NOTICE,"Initialized. Now monitoring for drive activity - Enjoy the light show!");
 
-	for(int i = 0; i < *hpdisks; i++) {
+	for(size_t i = 0; i < *hpdisks; i++) {
         if ( (pthread_join(hpexled_led[i], NULL)) != 0)
-			err(1, "Unable to join threads - pthread_join in main() before close");
+			err(1, "Unable to join threads - pthread_join in main() before close in %s line %d", __FUNCTION__, __LINE__);
     }
 
 	thread_run = 0; /* kludge - tell any threads that may still be running to end */
 	
-	for(int a = 0; a < *hpdisks; a++) {
+	for(size_t a = 0; a < *hpdisks; a++) {
 		free(hpex47x[a].statfile);
 		hpex47x[a].statfile = NULL;		
 	}
 	outw(CTL, ADDR);
 	syslog(LOG_NOTICE,"Standard Close of Program");	
+	pthread_spin_destroy(&hpex47x_gpio_lock);
 	pthread_attr_destroy(&attr);
 	ioperm(ADDR, 8, 0);
 	closelog();
@@ -790,9 +804,9 @@ void sigterm_handler(int s)
 {
 	thread_run = 0; /* kludge - tell any threads that may still be running to end */
 	if( hpdisks != NULL) {
-		for(int i = 0; i < *hpdisks; i++) {
+		for(size_t i = 0; i < *hpdisks; i++) {
 			if ( (pthread_join(hpexled_led[i], NULL)) != 0)
-				err(1, "Unable to join threads - pthread_join in main() before close");
+				err(1, "Unable to join threads - pthread_join in main() before close in %s line %d", __FUNCTION__, __LINE__);
 		}
 
 	}	
@@ -808,9 +822,10 @@ void sigterm_handler(int s)
 			hpex47x[a].statfile = NULL;		
 		}
 	}
+	pthread_attr_destroy(&attr);
 	outw(CTL,ADDR);
 	ioperm(ADDR, 8, 0);
 	free(hpdisks);
 	hpdisks = NULL;
-	err(0, "Exiting From Signal Handler");
+	errx(0, "Exiting From Signal Handler");
 }
