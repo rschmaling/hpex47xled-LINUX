@@ -5,7 +5,7 @@ CC = gcc
 CXX = g++
 # FLAGS = -Wall -O2 -fvariable-expansion-in-unroller -ftree-loop-ivcanon -funroll-loops -fexpensive-optimizations -fomit-frame-pointer
 # FLAGS = -Wall -O2 -std=c99 -Werror
-FLAGS = -Wall -O2 -Werror
+FLAGS = -Wall -Werror -O2 -std=gnu99
 CFLAGS = $(FLAGS)
 CXXFLAGS = $(CFLAGS)
 LDFLAGS = -ludev -pthread
