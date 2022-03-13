@@ -103,3 +103,4 @@ void start_led(void);
 
 /* using spinlocks vs. mutex as the thread should spin vs. sleep to stay (mostly) in sync. */
 pthread_spinlock_t  hpex47x_gpio_lock;
+pthread_spinlock_t  hpex47x_gpio_lock2;

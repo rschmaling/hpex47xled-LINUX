@@ -38,7 +38,6 @@
 /////// - each drive will flash based on IO activity derrived from /sys/ * /stat files. If you use a drive connected by eSATA - YMMV. Please provide
 ///////   the /sys/* information path so I can add it to the ide structures, ignore, or exclude them from detection. 
 ///////
-///////
 /////// February 18, 2022  
 /////// - Change retbyte to return int64_t and the hpled struct r_io and w_io to int64_t as well. reasoning: if this runs long enough, that number will become large.
 /////// - added a break to the token return of retbyte - didn't realize I was letting it parse the whole file before returning.
@@ -46,6 +45,14 @@
 /////// February 22, 20222
 /////// - Threaded the initialization.
 /////// - Threaded the reading of the stat file parse, tokenize, compare, fire led process into one thread per disks.
+///////
+/////// March 11, 2022
+/////// - fixed race condition in hpex47x_thread_run - added pthread_spin_lock and pthread_spin_unlock to resolve issue
+/////// - as a 'just in case' added pthread_spin_lock/unlock to the LED control function to give exclusive access during on/off writes.
+/////// - ensure that the function that taking the return from retpath() calls free() when finished.
+/////// - working on an update_monitor function - will monitor apt-get for system updates on Ubuntu. 
+///////   thinking I will set one light or flash all lights once every 10 minutes if updates are available for processing
+///////   this idea is blatently plagiarized from the mediasmartserverd - update monitor written by Kai Hendrik Behrends
 
 #include "hpex47xled.h"
 
@@ -142,7 +149,7 @@ int64_t retbytes(char* statfile, int field)
         }
 
         if( ferror(input_file) ){
-            perror( "The following error occurred" );
+            perror( "The following error occurred: " );
 	   		exit(1);
         }
 
@@ -160,17 +167,18 @@ void* hpex47x_thread_run (void *arg)
 	int led_state = 0;
 	int led_light = 0; /* 1 = blue    2 = red    3 = purple */
 	struct timespec tv = { .tv_sec = 0, .tv_nsec = BLINK_DELAY };
+	pthread_t thId = pthread_self();
 
 	while(thread_run) {
 
 		if( (pthread_spin_lock(&hpex47x_gpio_lock)) != 0)
-			err(1,"invalid return from pthread_spin_lock in %s line %d", __FUNCTION__, __LINE__);
+			err(1,"Invalid return from pthread_spin_lock for thread %ld in %s line %d", thId, __FUNCTION__, __LINE__);
 
 		n_rio = retbytes(hpex47x.statfile, 0);
 		n_wio = retbytes(hpex47x.statfile, 4);
 			
 		if( (pthread_spin_unlock(&hpex47x_gpio_lock)) != 0)
-			err(1, "invalid return from pthread_spin_unlock in %s line %d", __FUNCTION__, __LINE__);	
+			err(1, "Invalid return from pthread_spin_unlock for thread %ld in %s line %d", thId, __FUNCTION__, __LINE__);	
 
 		if(debug)
 			printf("the disk is: %li \n", hpex47x.hphdd);
@@ -183,6 +191,7 @@ void* hpex47x_thread_run (void *arg)
 			if(debug) {
 				printf("Read I/O = %li Write I/O = %li \n", n_rio, n_wio);
 				printf("HP HDD is: %li \n", hpex47x.hphdd);
+				printf("Thread ID: %ld \n", thId);
 			}
 			led_light = PURPLE_CASE;
 			led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
@@ -195,6 +204,7 @@ void* hpex47x_thread_run (void *arg)
 			if(debug) {
 				printf("Read I/O only and is: %li \n", n_rio);
 				printf("HP HDD is: %li \n", hpex47x.hphdd);
+				printf("Thread ID: %ld \n", thId);
 			}
 			led_light = PURPLE_CASE;
 			led_state = led_set(hpex47x.hphdd, PURPLE_CASE, led_light);
@@ -206,6 +216,7 @@ void* hpex47x_thread_run (void *arg)
 			if(debug) {
 				printf("Write I/O only and is: %li \n", n_wio);
 				printf("HP HDD is: %li \n", hpex47x.hphdd);
+				printf("Thread ID: %ld \n", thId);
 			}
 			led_light = BLUE_CASE;
 			led_state = led_set(hpex47x.hphdd, BLUE_CASE, led_light);
@@ -656,8 +667,10 @@ void drop_priviledges( void )
 int led_set(int hphdd, int color, int offstate) 
 {
 	/* we don't use offstate except to turn off the LEDs */
-	if( (pthread_spin_lock(&hpex47x_gpio_lock)) != 0 )
+	/* we spin here with another spinlock on led_set */
+	if( (pthread_spin_lock(&hpex47x_gpio_lock2)) != 0 )
 		err(1,"invalid return from pthread_spin_lock in %s line %d", __FUNCTION__, __LINE__);
+
 	int led_return = 0;
 	switch( color ) {
 		case 1:
@@ -675,8 +688,10 @@ int led_set(int hphdd, int color, int offstate)
 		default:
 				led_return = offled(hphdd, offstate);
 	}
-	if( (pthread_spin_unlock(&hpex47x_gpio_lock)) != 0)
+	
+	if( (pthread_spin_unlock(&hpex47x_gpio_lock2)) != 0)
 		err(1, "invalid return from pthread_spin_unlock in %s line %d", __FUNCTION__, __LINE__);
+
 	return led_return;
 }
 
@@ -731,6 +746,8 @@ int main (int argc, char** argv)
 
 	if( (pthread_spin_init(&hpex47x_gpio_lock, PTHREAD_PROCESS_PRIVATE)) !=0 )
 		err(1,"Unable to initialize spin_lock in %s at %d", __FUNCTION__, __LINE__);
+	if( (pthread_spin_init(&hpex47x_gpio_lock2, PTHREAD_PROCESS_PRIVATE)) !=0 )
+		err(1,"Unable to initialize spin_lock in %s at %d", __FUNCTION__, __LINE__);	
 
 	if ((pthread_attr_init(&attr)) < 0 )
 		err(1, "Unable to execute pthread_attr_init(&attr) in %s line %d", __FUNCTION__, __LINE__);
@@ -792,6 +809,7 @@ int main (int argc, char** argv)
 	outw(CTL, ADDR);
 	syslog(LOG_NOTICE,"Standard Close of Program");	
 	pthread_spin_destroy(&hpex47x_gpio_lock);
+	pthread_spin_destroy(&hpex47x_gpio_lock2);
 	pthread_attr_destroy(&attr);
 	ioperm(ADDR, 8, 0);
 	closelog();
@@ -811,10 +829,10 @@ void sigterm_handler(int s)
 
 	}	
 	if( (pthread_spin_destroy(&hpex47x_gpio_lock)) != 0 )
-		perror("pthread_spin_destroy");
+		perror("pthread_spin_destroy lock 1");
+	if( (pthread_spin_destroy(&hpex47x_gpio_lock2)) != 0 )
+		perror("pthread_spin_destroy lock 2");
 
-	syslog(LOG_NOTICE,"Shutting Down on Signal");
-	closelog();
 	if (hpdisks != NULL) {
 
 		for(int a = 0; a < *hpdisks; a++) {
@@ -827,5 +845,7 @@ void sigterm_handler(int s)
 	ioperm(ADDR, 8, 0);
 	free(hpdisks);
 	hpdisks = NULL;
+	syslog(LOG_NOTICE,"Shutting Down on Signal");
+	closelog();
 	errx(0, "Exiting From Signal Handler");
 }
