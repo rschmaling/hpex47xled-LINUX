@@ -1,3 +1,5 @@
+#ifndef INCLUDED_HPEX47XLED
+#define INCLUDED_HPEX47XLED
 #define _GNU_SOURCE 
 #include <libudev.h>
 #include <stdio.h>
@@ -7,11 +9,13 @@
 #include <inttypes.h>
 #include <string.h>
 #include <signal.h>
+#include <math.h>
 #include <err.h>
 #include <errno.h>
 #include <syslog.h>
 #include <getopt.h>
 #include <sys/io.h>
+#include <sys/stat.h>
 #include <pwd.h>
 #include <pthread.h>
 #include <time.h>
@@ -100,7 +104,8 @@ int offled(int led, int off_state);
 int led_set(int hphdd, int color, int offstate);
 void* hpex47x_thread_run (void *arg);
 void start_led(void);
+extern void *update_monitor_thread(void *arg);
 
-/* using spinlocks vs. mutex as the thread should spin vs. sleep to stay (mostly) in sync. */
-pthread_spinlock_t  hpex47x_gpio_lock;
-pthread_spinlock_t  hpex47x_gpio_lock2;
+extern int update_thread_instance;
+
+#endif //INCLUDED_HPEX47XLED

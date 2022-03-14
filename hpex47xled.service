@@ -6,7 +6,7 @@ Description=HP EX47x Drive LED Monitor Service
 #User=nobody
 #Group=nobody
 Type=simple
-ExecStart=/usr/local/bin/hpex47xled
+ExecStart=/usr/local/bin/hpex47xled --update
 Restart=on-failure
 
 [Install]

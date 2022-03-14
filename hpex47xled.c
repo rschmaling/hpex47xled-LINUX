@@ -58,13 +58,18 @@
 
 struct hpled ide0, ide1, ide2, ide3 ;
 struct hpled hpex47x[4];
-int debug = 0;
 u_int16_t encreg;
 int* hpdisks = NULL;
-int thread_run = 1; 
+int debug = 0;
+int disk_thread_run = 1; 
 pthread_t hpexled_led[4]; /* there can be only 4! */
+pthread_t updatemonitor; /* update monitor thread instance */
 // Create Thread Attributes - put here for clean-up purposes
 pthread_attr_t attr;
+
+/* using spinlocks vs. mutex as the thread should spin vs. sleep to stay (mostly) in sync. */
+pthread_spinlock_t  hpex47x_gpio_lock;
+pthread_spinlock_t  hpex47x_gpio_lock2;
 
 // 0 is read I/Os, 4 is write I/Os in the /sys/devices/* /stat file 
 
@@ -169,7 +174,7 @@ void* hpex47x_thread_run (void *arg)
 	struct timespec tv = { .tv_sec = 0, .tv_nsec = BLINK_DELAY };
 	pthread_t thId = pthread_self();
 
-	while(thread_run) {
+	while(disk_thread_run) {
 
 		if( (pthread_spin_lock(&hpex47x_gpio_lock)) != 0)
 			err(1,"Invalid return from pthread_spin_lock for thread %ld in %s line %d", thId, __FUNCTION__, __LINE__);
@@ -716,6 +721,7 @@ int main (int argc, char** argv)
         { "daemon",         no_argument,       0, 'D' },
         { "help",           no_argument,       0, 'h' },
         { "version",        no_argument,       0, 'v' },
+		{ "update",			no_argument, 	   0, 'u' },
         { 0, 0, 0, 0 },
         };
 
@@ -731,6 +737,9 @@ int main (int argc, char** argv)
                 case 'd': // debug
                         debug++;
                         break;
+				case 'u': //update_tread
+						update_thread_instance++;
+						break;
                 case 'h': // help!
                         return show_help(argv[0]);
                 case 'v': // our version
@@ -795,13 +804,24 @@ int main (int argc, char** argv)
 	syslog(LOG_NOTICE,"Initialized monitor threads. Monitoring with %li threads", num_threads);
 	syslog(LOG_NOTICE,"Initialized. Now monitoring for drive activity - Enjoy the light show!");
 
+	if(update_thread_instance) {
+		if( (pthread_create(&updatemonitor, &attr, &update_monitor_thread, NULL)) != 0)
+			err(1, "Unable to create update_monitor_thread in %s line %d", __FUNCTION__, __LINE__);
+	}
+
 	for(size_t i = 0; i < *hpdisks; i++) {
         if ( (pthread_join(hpexled_led[i], NULL)) != 0)
-			err(1, "Unable to join threads - pthread_join in main() before close in %s line %d", __FUNCTION__, __LINE__);
+			err(1, "Unable to join threads - pthread_join before close in %s line %d", __FUNCTION__, __LINE__);
     }
 
-	thread_run = 0; /* kludge - tell any threads that may still be running to end */
+	disk_thread_run = 0; /* kludge - tell any threads that may still be running to end */
 	
+	if(update_thread_instance){
+		if( (pthread_join(updatemonitor, NULL)) != 0)
+			err(1, "Unable to join update_monitor_thread before close in %s line %d", __FUNCTION__, __LINE__);
+	}
+	update_thread_instance = 0;
+
 	for(size_t a = 0; a < *hpdisks; a++) {
 		free(hpex47x[a].statfile);
 		hpex47x[a].statfile = NULL;		
@@ -820,7 +840,7 @@ int main (int argc, char** argv)
 
 void sigterm_handler(int s)
 {
-	thread_run = 0; /* kludge - tell any threads that may still be running to end */
+	disk_thread_run = 0; /* kludge - tell any threads that may still be running to end */
 	if( hpdisks != NULL) {
 		for(size_t i = 0; i < *hpdisks; i++) {
 			if ( (pthread_join(hpexled_led[i], NULL)) != 0)
@@ -839,6 +859,13 @@ void sigterm_handler(int s)
 			free(hpex47x[a].statfile);
 			hpex47x[a].statfile = NULL;		
 		}
+	}
+	if(update_thread_instance) {
+		update_thread_instance = 0;
+		if(pthread_cancel(updatemonitor) != 0)
+				err(1, "Unable to cancel update monitor thread in %s line %d", __FUNCTION__, __LINE__);
+		if( (pthread_join(updatemonitor, NULL)) != 0)
+			err(1, "Unable to join update_monitor_thread before close in %s line %d", __FUNCTION__, __LINE__);
 	}
 	pthread_attr_destroy(&attr);
 	outw(CTL,ADDR);

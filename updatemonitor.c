@@ -1,17 +1,33 @@
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <sys/stat.h>
-#include <pthread.h>
-#include <err.h>
+// #include <stdio.h>
+// #include <unistd.h>
+// #include <string.h>
+// #include <stdlib.h>
+// #include <assert.h>
+// #include <sys/stat.h>
+// #include <pthread.h>
+// #include <err.h>
+#include "hpex47xled.h"
 
-int LED_RED, LED_BLUE, LED_ON, LED_OFF;
-int led_set(int hphdd, int color, int offstate);
-int thread_instance = 0;
+int update_thread_instance = 0;
+extern int debug;
 
+int rand_drive(void)
+{
+        size_t myRandomNumber = -1;
+        unsigned long seed = (unsigned)time((time_t *)NULL);
+
+        // FILE *fp = fopen("/dev/urandom", "r");
+        // fread(&myRandomValue, sizeof(int64_t), 1, fp);
+        // fclose(fp);
+        // srandom(myRandomValue);
+        srandom(seed);
+
+        myRandomNumber = random() % 4;
+
+        if(debug) printf("In update monitor thread - random drive number is %ld from %s line %d", myRandomNumber, __FUNCTION__, __LINE__);
+        return myRandomNumber;
+}
 char* retfield( char* parent, char *delim, int field )
 {
 
@@ -110,65 +126,53 @@ int reboot_required(void)
 
 void thread_cleanup_handler(void *arg)
 {
-        thread_instance = 0;
+        update_thread_instance = 0;
         for(int i = 0; i < 4; i++){
-           led_set( i, LED_RED, LED_OFF);     
+           led_set( i, LED_CASE_OFF, RED_CASE);     
         }
+        syslog(LOG_NOTICE,"Update Monitor Thread Cleaned Up and Ending");
+        if(debug) printf("\n\n\nUpdate Monitor Thread Ending in %s line %d\n",__FUNCTION__, __LINE__);
 }
 
 void *update_monitor_thread(void *arg)
 {
-        thread_instance = 1;
+        size_t lastdrive = -1;
+        update_thread_instance = 1;
         pthread_cleanup_push(thread_cleanup_handler, NULL);
-        while(thread_instance){
+        
+        syslog(LOG_NOTICE,"Initialized. Now Monitoring for Updates with the Update Monitor Thread");
+        
+        if(debug) printf("\n\nUpdate Monitor Thread Executing\n");
+        
+        while(update_thread_instance){
                 if(pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL) != 0)
                         err(1, "Unable to set pthread_setcancelstate to disable in %s line %d", __FUNCTION__, __LINE__);
                 int update_count = -1, security_update_count = -1;
+                
+                if(lastdrive >= 0)
+                        led_set(lastdrive, LED_CASE_OFF, RED_CASE);
+
+                lastdrive = rand_drive();
+                assert(lastdrive < 4);
+                
                 if( status_update(&update_count, &security_update_count) != 1 ) {
 
                         break;
                 }
-                if(reboot_required() == 0){ 
-                        led_set(1, LED_RED, LED_ON);
-                }
-                else if( security_update_count > 0){
+                if(reboot_required() == 0 || security_update_count > 0 || update_count > 0){ 
+                        assert(lastdrive >= 0);
+                        led_set(lastdrive, RED_CASE, RED_CASE);
+                        syslog(LOG_NOTICE,"UPDATE MONITOR THREAD: Updates: %d Security Updates: %d Reboot Required: %s", update_count, security_update_count, (reboot_required() == 0) ? "YES" : "NO");
 
-                        led_set(1, LED_RED, LED_ON);
-                }
-                else if( update_count > 0){
-                       led_set(1, LED_RED, LED_ON);
                 }
                 else {
-                       led_set(1, LED_RED, LED_OFF);
-
+                        led_set(lastdrive, LED_CASE_OFF, RED_CASE);
                 }
                 if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL) != 0)
                         err(1, "Unable to set pthread_setcancelstate to enable in %s line %d", __FUNCTION__, __LINE__);
                 sleep(900);
         }        
         pthread_cleanup_pop(1); //Remove handler and execute it.
+        if(debug) printf("\n\n\nUpdate Monitor Thread Ending\n in %s line %d\n",__FUNCTION__, __LINE__);
 	return NULL;
-}
-int led_set(int hphdd, int color, int offstate)
-{
-       return 1; 
-}
-int main(int argc, char** argv)
-{
-
-	int update_count = -1, security_update_count = -1;
-        if( ! status_update(&update_count, &security_update_count) ) {
-                printf("Unknown error return from status_update() \n");
-                return 0;
-
-        }
-        printf("Update Count is : %d \n", update_count);
-        printf("Security Update Count is : %d \n", security_update_count);
-
-        if( reboot_required() == 0)
-                printf("Reboot is required\n");
-        else
-                printf("Reboot not required\n");
-
-	return 0;
 }
