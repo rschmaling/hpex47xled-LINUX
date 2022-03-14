@@ -8,7 +8,7 @@ CXX = g++
 FLAGS = -Wall -Werror -O2 -std=gnu99
 CFLAGS = $(FLAGS)
 CXXFLAGS = $(CFLAGS)
-LDFLAGS = -ludev -pthread
+LDFLAGS = -ludev -pthread -lm
 DEPS = hpex47xled.h
 RCPREFIX := /etc/systemd/system/
 RCFILE := hpex47xled.service
@@ -21,12 +21,15 @@ endif
 
 # build libraries and options
 
-all: clean hpex47xled.o hpex47xled
+all: clean hpex47xled.o updatemonitor.o hpex47xled
 
 hpex47xled.o: hpex47xled.c 
 	$(CC) $(CFLAGS) -o $@ -c $^
 
-hpex47xled: hpex47xled.o
+updatemonitor.o: updatemonitor.c
+	$(CC) $(CFLAGS) -o $@ -c $^
+
+hpex47xled: hpex47xled.o updatemonitor.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 .PHONY: clean
