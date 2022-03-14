@@ -721,13 +721,13 @@ int main (int argc, char** argv)
         { "daemon",         no_argument,       0, 'D' },
         { "help",           no_argument,       0, 'h' },
         { "version",        no_argument,       0, 'v' },
-		{ "update",			no_argument, 	   0, 'u' },
+	{ "update",			no_argument, 	   0, 'u' },
         { 0, 0, 0, 0 },
         };
 
         // pass command line arguments
         while ( 1 ) {
-                const int c = getopt_long( argc, argv, "dDhv?", long_opts, 0 );
+                const int c = getopt_long( argc, argv, "dDhuv?", long_opts, 0 );
                 if ( -1 == c ) break;
 
         	switch ( c ) {
@@ -737,9 +737,9 @@ int main (int argc, char** argv)
                 case 'd': // debug
                         debug++;
                         break;
-				case 'u': //update_tread
-						update_thread_instance++;
-						break;
+		case 'u': //update_tread
+			update_thread_instance++;
+			break;
                 case 'h': // help!
                         return show_help(argv[0]);
                 case 'v': // our version
