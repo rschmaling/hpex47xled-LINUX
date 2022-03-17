@@ -12,6 +12,7 @@ LDFLAGS = -ludev -pthread -lm
 DEPS = hpex47xled.h
 RCPREFIX := /etc/systemd/system/
 RCFILE := hpex47xled.service
+TARGETS := hpex47xled
 # PREFIX is environment variable if not set, set default value here.
 
 ifeq ($(PREFIX),)
@@ -40,5 +41,5 @@ clean:
 .PHONY: install
 
 install: all
-	test -f $(RCPREFIX)$(RCFILE) || install -m 644 $(RCPREFIX)$(RCFILE)
-	install -s -m 700 hpex47xled $(PREFIX)/bin/
+	test -f $(RCPREFIX)$(RCFILE) || install -m 644 $(RCFILE) $(RCPREFIX)
+	install -s -m 700 $(TARGETS) $(PREFIX)/bin/
