@@ -53,6 +53,11 @@
 /////// - working on an update_monitor function - will monitor apt-get for system updates on Ubuntu. 
 ///////   thinking I will set one light or flash all lights once every 10 minutes if updates are available for processing
 ///////   this idea is blatently plagiarized from the mediasmartserverd - update monitor written by Kai Hendrik Behrends
+///////
+/////// March 24, 2022
+/////// - I expect read and write IO to be unsigned - changed int64_t to uint64_t 
+/////// - 
+/////// - 
 
 #include "hpex47xled.h"
 
@@ -112,7 +117,7 @@ char* retpath( char* parent, char *delim, int field )
     return found;
 }
 
-int64_t retbytes(char* statfile, int field)
+size_t retbytes(char* statfile, int field, uint64_t *operations)
 {
 
     const char *delimiter_characters = " ";
@@ -120,7 +125,6 @@ int64_t retbytes(char* statfile, int field)
     char *last_token;
     char *end;
     int token = 0;
-    int64_t found = 0;
 
     FILE *input_file = fopen( statfile, "r" );
 
@@ -139,12 +143,12 @@ int64_t retbytes(char* statfile, int field)
 
             while( (last_token != NULL) && (token <= field) ){
                 if( token == field) {
-                        found = strtoll( last_token, &end, 10 );
+                        *operations = strtoul( last_token, &end, 10 );
 					if(*end)
-						err(1, "Unable to convert string to int64_t in %s line %d ", __FUNCTION__, __LINE__);
+						err(1, "Unable to convert string to uint64_t in %s line %d ", __FUNCTION__, __LINE__);
 
 					if(debug)
-                        	printf("The value of field %i is %li \n", token, found);
+                        	printf("The value of field %i is %li \n", token, *operations);
 					break;
                 }
                 last_token = strtok( NULL, delimiter_characters );
@@ -161,13 +165,14 @@ int64_t retbytes(char* statfile, int field)
         fclose( input_file );
     }
 
-    return found;
+    return (*operations >=0) ? 1 : 0;
 
 }
-
+/* Thread function */
 void* hpex47x_thread_run (void *arg)
 {
-	int64_t n_rio, n_wio = 0;
+	uint64_t n_rio = 0; /* new IO read */
+	uint64_t n_wio = 0; /* new IO write */
 	struct hpled hpex47x = *(struct hpled *)arg;
 	int led_state = 0;
 	int led_light = 0; /* 1 = blue    2 = red    3 = purple */
@@ -179,8 +184,10 @@ void* hpex47x_thread_run (void *arg)
 		if( (pthread_spin_lock(&hpex47x_gpio_lock)) != 0)
 			err(1,"Invalid return from pthread_spin_lock for thread %ld in %s line %d", thId, __FUNCTION__, __LINE__);
 
-		n_rio = retbytes(hpex47x.statfile, 0);
-		n_wio = retbytes(hpex47x.statfile, 4);
+		if((retbytes(hpex47x.statfile, 0, &n_rio)) == 0)
+			err(1, "Invalid return from retbytes() in %s line %d", __FUNCTION__, __LINE__);
+		if((retbytes(hpex47x.statfile, 4, &n_wio)) == 0)
+			err(1, "Invalid return from retbytes() in %s line %d", __FUNCTION__, __LINE__);
 			
 		if( (pthread_spin_unlock(&hpex47x_gpio_lock)) != 0)
 			err(1, "Invalid return from pthread_spin_unlock for thread %ld in %s line %d", thId, __FUNCTION__, __LINE__);	
@@ -347,10 +354,10 @@ void* hpex47x_init(void *arg)
 			if(debug)
 				printf("ide0.statfile is: %s \n", ide0.statfile);
 			ide0.hphdd = 1;
-			if ( (ide0.rio = retbytes(ide0.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in %s line %d ", __FUNCTION__, __LINE__);
-			if( (ide0.wio = retbytes(ide0.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in %s line %d ", __FUNCTION__, __LINE__);	
+			if ((retbytes(ide0.statfile, 0, &ide0.rio )) == 0)
+			       err(1, "Error on return from retbytes() in %s line %d ", __FUNCTION__, __LINE__);
+			if((retbytes(ide0.statfile, 4, &ide0.wio)) == 0)
+				err(1, "Error on return from retbytes() in %s line %d ", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide0;
 			syslog(LOG_NOTICE,"Adding HP Disk 1 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 1 is %s",hpex47x[numdisks].statfile);
@@ -367,10 +374,10 @@ void* hpex47x_init(void *arg)
 			if(debug)
 				printf("ide1.statfile is: %s \n", ide1.statfile);
 			ide1.hphdd = 2;
-			if( (ide1.rio = retbytes(ide1.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);
-			if( (ide1.wio = retbytes(ide1.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);	
+			if((retbytes(ide1.statfile, 0, &ide1.rio)) == 0)
+			       err(1, "Error on return from retbytes() in %s line %d", __FUNCTION__, __LINE__);
+			if((retbytes(ide1.statfile, 4, &ide1.wio)) == 0)
+				err(1, "Error on return from retbytes() in %s line %d", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide1;
 			syslog(LOG_NOTICE,"Adding HP Disk 2 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 2 is %s",hpex47x[numdisks].statfile);
@@ -387,10 +394,10 @@ void* hpex47x_init(void *arg)
 			if(debug)
 				printf("ide2.statfile is: %s \n", ide2.statfile);
 			ide2.hphdd = 3;
-			if( (ide2.rio = retbytes(ide2.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);
-			if( (ide2.wio = retbytes(ide2.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);	
+			if((retbytes(ide2.statfile, 0, &ide2.rio)) == 0)
+			       err(1, "Error on return from retbytes() in %s line %d", __FUNCTION__, __LINE__);
+			if((retbytes(ide2.statfile, 4, &ide2.wio)) == 0)
+				err(1, "Error on return from retbytes() in %s line %d", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide2;
 			syslog(LOG_NOTICE,"Adding HP Disk 3 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 3 is %s",hpex47x[numdisks].statfile);
@@ -407,10 +414,10 @@ void* hpex47x_init(void *arg)
 			if(debug)
 				printf("ide3.statfile is: %s \n", ide3.statfile);
 			ide3.hphdd = 4;
-			if( (ide3.rio = retbytes(ide3.statfile, 0)) < 0)
-			       err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);
-			if( (ide3.wio = retbytes(ide3.statfile, 4)) < 0)
-				err(1, "Error on return from retbytes in %s line %d", __FUNCTION__, __LINE__);	
+			if((retbytes(ide3.statfile, 0, &ide3.rio)) == 0)
+			       err(1, "Error on return from retbytes() in %s line %d", __FUNCTION__, __LINE__);
+			if((retbytes(ide3.statfile, 4, &ide3.wio)) == 0)
+				err(1, "Error on return from retbytes() in %s line %d", __FUNCTION__, __LINE__);	
 			hpex47x[numdisks] = ide3;
 			syslog(LOG_NOTICE,"Adding HP Disk 4 to monitor pool.");
 			syslog(LOG_NOTICE,"Statfile path for HP Disk 4 is %s",hpex47x[numdisks].statfile);
@@ -721,7 +728,7 @@ int main (int argc, char** argv)
         { "daemon",         no_argument,       0, 'D' },
         { "help",           no_argument,       0, 'h' },
         { "version",        no_argument,       0, 'v' },
-	{ "update",			no_argument, 	   0, 'u' },
+		{ "update",			no_argument, 	   0, 'u' },
         { 0, 0, 0, 0 },
         };
 

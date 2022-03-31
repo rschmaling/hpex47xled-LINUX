@@ -113,7 +113,7 @@ int status_update(int *update_count, int *security_update_count)
                 free(line);
                 line = NULL;
         }
-        return 1;
+        return (*update_count + *security_update_count);
 }
 
 int reboot_required(void)
@@ -155,7 +155,7 @@ void *update_monitor_thread(void *arg)
                 lastdrive = rand_drive();
                 assert(lastdrive < 4);
                 
-                if( status_update(&update_count, &security_update_count) != 1 ) {
+                if( status_update(&update_count, &security_update_count) < 0 ) {
 
                         break;
                 }

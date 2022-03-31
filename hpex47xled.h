@@ -85,12 +85,12 @@
 struct hpled {
         char* statfile;
         size_t hphdd;
-        int64_t rio;
-        int64_t wio;
+        uint64_t rio;
+        uint64_t wio;
 };
 
 void sigterm_handler(int s);
-int64_t retbytes(char* statfile, int field);
+size_t retbytes(char* statfile, int field, uint64_t *operations);
 void* hpex47x_init(void *arg);
 char* curdir(char *str);
 int show_help(char * progname );
